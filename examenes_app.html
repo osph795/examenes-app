@@ -1220,8 +1220,18 @@ if (asignaturaUrl && codigoUrl) {
   }
 }
 
-// Cargar temas cuando se abre pantalla generar examen
-document.getElementById('screen-generar-examen').addEventListener('click', () => {}, { once: false });
+// Cargar temas al abrir pantalla generar examen
+const _irA = irA;
+function irA(id) {
+  _irA(id);
+  if (id === 'screen-generar-examen' && asignaturaActual) {
+    initTemasGrid();
+    actualizarSelectAlumnos();
+  }
+  if (id === 'screen-alumnos' && asignaturaActual) {
+    cargarAlumnosAsignatura();
+  }
+}
 </script>
 </body>
 </html>
