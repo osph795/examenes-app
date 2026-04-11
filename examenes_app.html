@@ -478,12 +478,6 @@ let alumnoMetricasActual = null;
 // ═══════════════════════════════════════════════════════
 // NAVEGACIÓN
 // ═══════════════════════════════════════════════════════
-function irA(id) {
-  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-  document.getElementById(id).classList.add('active');
-  window.scrollTo(0, 0);
-}
-
 function esperar(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 // ═══════════════════════════════════════════════════════
@@ -1221,9 +1215,10 @@ if (asignaturaUrl && codigoUrl) {
 }
 
 // Cargar temas al abrir pantalla generar examen
-const _irA = irA;
 function irA(id) {
-  _irA(id);
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  window.scrollTo(0, 0);
   if (id === 'screen-generar-examen' && asignaturaActual) {
     initTemasGrid();
     actualizarSelectAlumnos();
