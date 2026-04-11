@@ -1,0 +1,1227 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sistema de Exámenes</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f5; color: #1a1a1a; min-height: 100vh; }
+
+  /* LAYOUT */
+  .header { background: #fff; border-bottom: 1px solid #e0e0e0; padding: 14px 20px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 10; }
+  .header h1 { font-size: 17px; font-weight: 600; }
+  .screen { display: none; }
+  .screen.active { display: block; }
+  .inner { max-width: 720px; margin: 0 auto; padding: 24px 16px; }
+
+  /* CARDS */
+  .card { background: #fff; border-radius: 12px; border: 1px solid #e0e0e0; padding: 22px; margin-bottom: 16px; }
+  .card h2 { font-size: 15px; font-weight: 600; margin-bottom: 16px; }
+  .card h3 { font-size: 13px; font-weight: 600; color: #555; margin-bottom: 10px; }
+
+  /* BADGES */
+  .badge { font-size: 11px; padding: 3px 9px; border-radius: 20px; font-weight: 500; }
+  .badge-profesor { background: #e8f0fe; color: #1a73e8; }
+  .badge-alumno { background: #e6f4ea; color: #188038; }
+  .badge-metricas { background: #fce8e6; color: #d93025; }
+
+  /* BUTTONS */
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 18px; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; border: none; transition: all 0.15s; }
+  .btn-full { width: 100%; }
+  .btn-primary { background: #1a73e8; color: #fff; }
+  .btn-primary:hover { background: #1557b0; }
+  .btn-secondary { background: #f1f3f4; color: #444; }
+  .btn-secondary:hover { background: #e0e0e0; }
+  .btn-success { background: #188038; color: #fff; }
+  .btn-success:hover { background: #0d652d; }
+  .btn-danger { background: #fff; color: #d93025; border: 1px solid #d93025; }
+  .btn-sm { padding: 6px 12px; font-size: 12px; }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  /* FORMS */
+  label { display: block; font-size: 13px; font-weight: 500; color: #444; margin-bottom: 5px; }
+  input[type="text"], input[type="number"], input[type="password"], select {
+    width: 100%; padding: 10px 12px; border: 1.5px solid #ddd; border-radius: 8px;
+    font-size: 14px; outline: none; margin-bottom: 14px; background: #fff;
+    transition: border-color 0.15s;
+  }
+  input:focus, select:focus { border-color: #1a73e8; }
+
+  /* GRID SELECTOR */
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .sel-card { border: 1.5px solid #e0e0e0; border-radius: 10px; padding: 14px; text-align: center; cursor: pointer; transition: all 0.15s; user-select: none; }
+  .sel-card:hover { border-color: #1a73e8; background: #f8fbff; }
+  .sel-card.selected { border-color: #1a73e8; background: #e8f0fe; color: #1a73e8; }
+  .sel-card .icon { font-size: 26px; margin-bottom: 8px; }
+  .sel-card h3 { font-size: 13px; font-weight: 600; margin: 0 0 4px; color: inherit; }
+  .sel-card p { font-size: 11px; color: #888; }
+  .sel-card.selected p { color: #1a73e8; }
+
+  /* TEMA CHECK */
+  .temas-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; margin-bottom: 14px; }
+  .tema-check { padding: 8px 10px; border: 1px solid #e0e0e0; border-radius: 7px; cursor: pointer; font-size: 12px; font-weight: 500; transition: all 0.15s; user-select: none; text-align: center; }
+  .tema-check:hover { border-color: #1a73e8; }
+  .tema-check.selected { border-color: #1a73e8; background: #e8f0fe; color: #1a73e8; }
+
+  /* LISTS */
+  .list-item { border: 1px solid #e0e0e0; border-radius: 9px; padding: 13px 15px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; transition: all 0.15s; }
+  .list-item:hover { border-color: #1a73e8; background: #f8fbff; }
+  .list-item-title { font-size: 14px; font-weight: 600; }
+  .list-item-sub { font-size: 12px; color: #888; margin-top: 2px; }
+  .list-item-right { display: flex; align-items: center; gap: 8px; }
+
+  /* PROGRESS */
+  .progress-bar { height: 5px; background: #e0e0e0; border-radius: 3px; overflow: hidden; margin-top: 5px; }
+  .progress-fill { height: 100%; border-radius: 3px; transition: width 0.3s; }
+  .progress-text { font-size: 12px; color: #888; margin-bottom: 6px; }
+
+  /* EXAMEN */
+  .pregunta-card { background: #fff; border-radius: 11px; border: 1px solid #e0e0e0; padding: 18px; margin-bottom: 11px; }
+  .pregunta-num { font-size: 11px; font-weight: 600; color: #1a73e8; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 7px; }
+  .pregunta-texto { font-size: 14px; font-weight: 500; margin-bottom: 14px; line-height: 1.5; }
+  .opciones { display: flex; flex-direction: column; gap: 7px; }
+  .opcion { display: flex; align-items: flex-start; gap: 10px; padding: 11px 13px; border: 1.5px solid #e0e0e0; border-radius: 8px; cursor: pointer; transition: all 0.15s; user-select: none; }
+  .opcion:hover { border-color: #1a73e8; background: #f8fbff; }
+  .opcion.selected { border-color: #1a73e8; background: #e8f0fe; }
+  .opcion-letra { width: 22px; height: 22px; min-width: 22px; border-radius: 50%; background: #f1f3f4; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; flex-shrink: 0; }
+  .opcion.selected .opcion-letra { background: #1a73e8; color: #fff; }
+  .opcion-texto { font-size: 13px; line-height: 1.4; padding-top: 2px; }
+
+  /* RESULTADOS */
+  .score-big { font-size: 52px; font-weight: 700; color: #1a73e8; text-align: center; }
+  .score-sub { font-size: 15px; color: #888; text-align: center; margin-top: 4px; }
+  .score-nota { font-size: 26px; font-weight: 700; text-align: center; margin-top: 10px; }
+  .stats-row { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; margin: 18px 0; }
+  .stat-box { background: #f8f9fa; border-radius: 9px; padding: 14px; text-align: center; }
+  .stat-num { font-size: 22px; font-weight: 700; }
+  .stat-label { font-size: 11px; color: #888; margin-top: 3px; }
+
+  /* MÉTRICAS */
+  .tabs { display: flex; gap: 3px; background: #f1f3f4; border-radius: 9px; padding: 3px; margin-bottom: 18px; }
+  .tab { flex: 1; padding: 7px; text-align: center; font-size: 12px; font-weight: 500; border-radius: 7px; cursor: pointer; color: #888; transition: all 0.15s; }
+  .tab.active { background: #fff; color: #1a1a1a; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+
+  .mini-bar { height: 4px; background: #e0e0e0; border-radius: 2px; overflow: hidden; margin-top: 5px; }
+  .mini-fill { height: 100%; border-radius: 2px; }
+  .delta { font-size: 11px; font-weight: 600; padding: 2px 5px; border-radius: 4px; margin-left: 5px; }
+  .delta-up { background: #e6f4ea; color: #188038; }
+  .delta-down { background: #fce8e6; color: #d93025; }
+  .delta-same { background: #f1f3f4; color: #888; }
+
+  /* CHART */
+  .chart-wrap { overflow-x: auto; }
+  .chart { display: flex; align-items: flex-end; gap: 6px; height: 140px; padding: 0 2px; }
+  .bar-col { display: flex; flex-direction: column; align-items: center; gap: 3px; flex: 1; min-width: 36px; }
+  .bar-rect { width: 100%; border-radius: 4px 4px 0 0; min-width: 28px; }
+  .bar-val { font-size: 10px; font-weight: 700; }
+  .bar-lbl { font-size: 10px; color: #888; white-space: nowrap; }
+
+  /* TABLA */
+  .tabla { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .tabla th { padding: 7px 9px; background: #f8f9fa; border-bottom: 1px solid #e0e0e0; font-weight: 600; color: #555; text-align: left; white-space: nowrap; }
+  .tabla td { padding: 7px 9px; border-bottom: 1px solid #f0f0f0; }
+  .tabla tr:last-child td { border-bottom: none; }
+
+  /* LINK BOX */
+  .link-box { background: #f8fbff; border: 1px solid #c5d8f8; border-radius: 8px; padding: 12px 14px; display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .link-box input { flex: 1; border: none; background: transparent; font-size: 12px; color: #1a73e8; outline: none; }
+
+  /* MSG */
+  .msg { padding: 11px 14px; border-radius: 8px; font-size: 13px; margin-bottom: 14px; }
+  .msg-info { background: #e8f0fe; color: #1a73e8; border: 1px solid #c5d8f8; }
+  .msg-warn { background: #fff8e1; color: #f57f17; border: 1px solid #ffe082; }
+  .msg-success { background: #e6f4ea; color: #188038; border: 1px solid #c8e6c9; }
+
+  /* LOADING */
+  .loading { text-align: center; padding: 80px 20px; color: #888; }
+  .spinner { width: 30px; height: 30px; border: 3px solid #e0e0e0; border-top-color: #1a73e8; border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 14px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* APP TITLE */
+  .app-title { text-align: center; padding: 48px 16px 24px; }
+  .app-title h1 { font-size: 26px; font-weight: 700; margin-bottom: 6px; }
+  .app-title p { color: #888; font-size: 14px; }
+
+  /* PRIORITY TAG */
+  .priority-tag { font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: 600; margin-left: 6px; }
+  .priority-high { background: #fce8e6; color: #d93025; }
+  .priority-low { background: #e6f4ea; color: #188038; }
+
+  @media (max-width: 480px) {
+    .temas-grid { grid-template-columns: repeat(2,1fr); }
+    .grid-2 { grid-template-columns: 1fr; }
+    .grid-3 { grid-template-columns: 1fr 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ══ INICIO ══ -->
+<div id="screen-inicio" class="screen active">
+  <div class="app-title">
+    <h1>📚 Sistema de Exámenes</h1>
+    <p>Gestión de evaluación continua</p>
+  </div>
+  <div class="inner" style="max-width:480px;">
+    <div class="grid-2">
+      <div class="sel-card" onclick="irA('screen-login')">
+        <div class="icon">👨‍🏫</div>
+        <h3>Profesor</h3>
+        <p>Panel de gestión</p>
+      </div>
+      <div class="sel-card" onclick="irA('screen-alumno-codigo')">
+        <div class="icon">📝</div>
+        <h3>Alumno</h3>
+        <p>Acceder al examen</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ LOGIN PROFESOR ══ -->
+<div id="screen-login" class="screen">
+  <div class="header">
+    <div style="display:flex;align-items:center;gap:10px;">
+      <button class="btn btn-secondary btn-sm" onclick="irA('screen-inicio')">← Volver</button>
+      <h1>Acceso profesor</h1>
+    </div>
+  </div>
+  <div class="inner" style="max-width:400px;">
+    <div class="card">
+      <h2>Introduce tu contraseña</h2>
+      <label>Contraseña</label>
+      <input type="password" id="login-password" placeholder="••••••••" onkeydown="if(event.key==='Enter')loginProfesor()">
+      <button class="btn btn-primary btn-full" onclick="loginProfesor()">Entrar</button>
+      <p style="font-size:12px;color:#888;margin-top:10px;">Contraseña por defecto: <strong>profesor123</strong></p>
+    </div>
+  </div>
+</div>
+
+<!-- ══ PANEL PROFESOR: ASIGNATURAS ══ -->
+<div id="screen-asignaturas" class="screen">
+  <div class="header">
+    <h1>Mis asignaturas</h1>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <span class="badge badge-profesor">Profesor</span>
+      <button class="btn btn-secondary btn-sm" onclick="irA('screen-inicio')">Salir</button>
+    </div>
+  </div>
+  <div class="inner">
+    <div class="card">
+      <h2>Asignaturas activas</h2>
+      <div id="lista-asignaturas"></div>
+      <button class="btn btn-primary btn-full" onclick="irA('screen-nueva-asignatura')" style="margin-top:8px;">+ Nueva asignatura</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ NUEVA ASIGNATURA ══ -->
+<div id="screen-nueva-asignatura" class="screen">
+  <div class="header">
+    <div style="display:flex;align-items:center;gap:10px;">
+      <button class="btn btn-secondary btn-sm" onclick="irA('screen-asignaturas')">← Volver</button>
+      <h1>Nueva asignatura</h1>
+    </div>
+  </div>
+  <div class="inner" style="max-width:500px;">
+    <div class="card">
+      <h2>Datos de la asignatura</h2>
+      <label>Nombre de la asignatura</label>
+      <input type="text" id="nueva-nombre" placeholder="Ej: Bioquímica clínica">
+      <label>ID del Google Sheet</label>
+      <input type="text" id="nueva-sheet-id" placeholder="1Y8_fcorZjd-nq-uedSGD...">
+      <label>URL del Apps Script</label>
+      <input type="text" id="nueva-script-url" placeholder="https://script.google.com/macros/s/...">
+      <button class="btn btn-primary btn-full" onclick="guardarAsignatura()">Guardar asignatura</button>
+    </div>
+    <div class="card">
+      <h2>ℹ️ Cómo obtener estos datos</h2>
+      <p style="font-size:13px;color:#555;line-height:1.6;">
+        <strong>Sheet ID:</strong> es la cadena entre <code>/d/</code> y <code>/edit</code> en la URL de tu Google Sheet.<br><br>
+        <strong>Apps Script URL:</strong> ve a Extensiones → Apps Script → Implementar → Gestionar implementaciones → copia la URL de aplicación web.
+      </p>
+    </div>
+  </div>
+</div>
+
+<!-- ══ PANEL ASIGNATURA ══ -->
+<div id="screen-panel-asignatura" class="screen">
+  <div class="header">
+    <div style="display:flex;align-items:center;gap:10px;">
+      <button class="btn btn-secondary btn-sm" onclick="irA('screen-asignaturas')">← Asignaturas</button>
+      <h1 id="panel-asignatura-nombre">Asignatura</h1>
+    </div>
+    <span class="badge badge-profesor">Profesor</span>
+  </div>
+  <div class="inner">
+    <div class="grid-3" style="margin-bottom:16px;">
+      <div class="sel-card" onclick="irA('screen-generar-examen')">
+        <div class="icon">📋</div>
+        <h3>Generar examen</h3>
+        <p>Crear y enviar</p>
+      </div>
+      <div class="sel-card" onclick="irA('screen-alumnos')">
+        <div class="icon">👥</div>
+        <h3>Alumnos</h3>
+        <p>Gestionar alumnos</p>
+      </div>
+      <div class="sel-card" onclick="cargarMetricas()">
+        <div class="icon">📊</div>
+        <h3>Métricas</h3>
+        <p>Ver evolución</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ ALUMNOS ══ -->
+<div id="screen-alumnos" class="screen">
+  <div class="header">
+    <div style="display:flex;align-items:center;gap:10px;">
+      <button class="btn btn-secondary btn-sm" onclick="irA('screen-panel-asignatura')">← Panel</button>
+      <h1>Alumnos</h1>
+    </div>
+    <span class="badge badge-profesor">Profesor</span>
+  </div>
+  <div class="inner">
+    <div class="card">
+      <h2>Añadir alumno</h2>
+      <label>Nombre completo</label>
+      <input type="text" id="alumno-nombre-input" placeholder="Ej: María García López">
+      <button class="btn btn-primary btn-full" onclick="crearAlumno()">Añadir alumno</button>
+    </div>
+    <div class="card">
+      <h2>Alumnos registrados</h2>
+      <div id="lista-alumnos-panel"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ GENERAR EXAMEN ══ -->
+<div id="screen-generar-examen" class="screen">
+  <div class="header">
+    <div style="display:flex;align-items:center;gap:10px;">
+      <button class="btn btn-secondary btn-sm" onclick="irA('screen-panel-asignatura')">← Panel</button>
+      <h1>Generar examen</h1>
+    </div>
+    <span class="badge badge-profesor">Profesor</span>
+  </div>
+  <div class="inner">
+    <div class="card">
+      <h2>Configuración</h2>
+      <label>Alumno</label>
+      <select id="examen-alumno">
+        <option value="">— Selecciona alumno —</option>
+      </select>
+      <label>Temas a incluir</label>
+      <div class="temas-grid" id="temas-grid-examen"></div>
+      <label>Número de preguntas</label>
+      <input type="number" id="num-preguntas" value="60" min="5" max="200">
+      <div class="msg msg-info" id="msg-priorizacion" style="display:none;"></div>
+      <button class="btn btn-primary btn-full" id="btn-generar" onclick="generarExamen()">Generar examen</button>
+    </div>
+    <div class="card" id="card-enlace" style="display:none;">
+      <h2>✅ Examen generado</h2>
+      <div class="msg msg-success" id="info-examen"></div>
+      <label>Enlace para el alumno</label>
+      <div class="link-box">
+        <input type="text" id="enlace-generado" readonly>
+        <button class="btn btn-secondary btn-sm" onclick="copiarEnlace()">Copiar</button>
+      </div>
+      <p style="font-size:12px;color:#888;margin-top:6px;">Envía este enlace por WhatsApp o email.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MÉTRICAS ══ -->
+<div id="screen-metricas" class="screen">
+  <div class="header">
+    <div style="display:flex;align-items:center;gap:10px;">
+      <button class="btn btn-secondary btn-sm" onclick="irA('screen-panel-asignatura')">← Panel</button>
+      <h1>Métricas</h1>
+    </div>
+    <span class="badge badge-metricas">Panel</span>
+  </div>
+  <div class="inner">
+    <div class="card" style="padding-bottom:12px;">
+      <label>Alumno</label>
+      <select id="metricas-alumno-select" onchange="cambiarAlumnoMetricas()">
+        <option value="">— Selecciona alumno —</option>
+      </select>
+    </div>
+    <div id="metricas-content" style="display:none;">
+      <div class="tabs">
+        <div class="tab active" id="tab-btn-global" onclick="switchMetricaTab('global')">Global</div>
+        <div class="tab" id="tab-btn-examenes" onclick="switchMetricaTab('examenes')">Por examen</div>
+        <div class="tab" id="tab-btn-conceptos" onclick="switchMetricaTab('conceptos')">Conceptos</div>
+      </div>
+
+      <!-- GLOBAL -->
+      <div id="tab-global">
+        <div class="card">
+          <h2>Evolución de la nota</h2>
+          <div class="chart-wrap"><div class="chart" id="chart-notas"></div></div>
+        </div>
+        <div class="card">
+          <h2>Resultados por tema</h2>
+          <div style="overflow-x:auto;" id="tabla-temas-wrap"></div>
+        </div>
+      </div>
+
+      <!-- POR EXAMEN -->
+      <div id="tab-examenes" style="display:none;">
+        <div class="card">
+          <h2>Selecciona un examen</h2>
+          <div id="lista-examenes-metricas"></div>
+        </div>
+        <div id="detalle-examen-wrap"></div>
+      </div>
+
+      <!-- CONCEPTOS -->
+      <div id="tab-conceptos" style="display:none;">
+        <div class="card">
+          <h2>🔴 Conceptos a reforzar <span style="font-size:12px;font-weight:400;color:#888;">(ratio &lt; 60%)</span></h2>
+          <div id="conceptos-flojos"></div>
+        </div>
+        <div class="card">
+          <h2>🟢 Conceptos dominados <span style="font-size:12px;font-weight:400;color:#888;">(ratio &gt; 90%)</span></h2>
+          <div id="conceptos-dominados"></div>
+        </div>
+        <div class="card">
+          <h2>🟡 En progreso <span style="font-size:12px;font-weight:400;color:#888;">(60–90%)</span></h2>
+          <div id="conceptos-progreso"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ ALUMNO: CÓDIGO ══ -->
+<div id="screen-alumno-codigo" class="screen">
+  <div class="header">
+    <div style="display:flex;align-items:center;gap:10px;">
+      <button class="btn btn-secondary btn-sm" onclick="irA('screen-inicio')">← Volver</button>
+      <h1>Acceder al examen</h1>
+    </div>
+    <span class="badge badge-alumno">Alumno</span>
+  </div>
+  <div class="inner" style="max-width:460px;">
+    <div class="card">
+      <h2>Código del examen</h2>
+      <label>Introduce el código</label>
+      <input type="text" id="codigo-input" placeholder="Ej: EX-20261004-A1B2" style="text-transform:uppercase;">
+      <button class="btn btn-primary btn-full" onclick="cargarExamenPorCodigo()">Empezar examen</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ EXAMEN ══ -->
+<div id="screen-examen" class="screen">
+  <div class="header">
+    <h1 id="examen-titulo">Examen</h1>
+    <span class="badge badge-alumno" id="examen-badge">0/0</span>
+  </div>
+  <div class="inner">
+    <div class="progress-text" id="progress-text"></div>
+    <div class="progress-bar"><div class="progress-fill" id="progress-fill" style="width:0%"></div></div>
+    <div id="preguntas-container"></div>
+    <button class="btn btn-success btn-full" onclick="enviarExamen()" style="margin-top:10px;">Enviar examen</button>
+  </div>
+</div>
+
+<!-- ══ RESULTADOS ══ -->
+<div id="screen-resultados" class="screen">
+  <div class="header">
+    <div style="display:flex;align-items:center;gap:10px;">
+      <button class="btn btn-secondary btn-sm" onclick="irA('screen-inicio')">← Inicio</button>
+      <h1>Resultados</h1>
+    </div>
+    <span class="badge badge-alumno">Completado</span>
+  </div>
+  <div class="inner" id="resultados-container"></div>
+</div>
+
+<!-- ══ LOADING ══ -->
+<div id="screen-loading" class="screen">
+  <div class="loading">
+    <div class="spinner"></div>
+    <p id="loading-text">Cargando...</p>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════
+// CONFIGURACIÓN — actualizar por asignatura
+// ═══════════════════════════════════════════════════════
+const CONFIG = {
+  password: 'profesor123',
+  asignaturas: [] // se cargan de localStorage
+};
+
+const BASE_URL = window.location.href.split('?')[0];
+const BLOQUE_SIZE = 5;
+const PROFESOR_KEY = 'examenes_profesor_auth';
+const ASIGNATURAS_KEY = 'examenes_asignaturas';
+
+// Estado global
+let asignaturaActual = null;
+let todasLasPreguntas = [];
+let alumnosActuales = [];
+let examenActual = null;
+let respuestasAlumna = {};
+let examenCodigo = null;
+let datosMetricas = null;
+let alumnoMetricasActual = null;
+
+// ═══════════════════════════════════════════════════════
+// NAVEGACIÓN
+// ═══════════════════════════════════════════════════════
+function irA(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  window.scrollTo(0, 0);
+}
+
+function esperar(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ═══════════════════════════════════════════════════════
+// ASIGNATURAS (localStorage)
+// ═══════════════════════════════════════════════════════
+function cargarAsignaturas() {
+  const stored = localStorage.getItem(ASIGNATURAS_KEY);
+  return stored ? JSON.parse(stored) : [];
+}
+
+function guardarAsignatura() {
+  const nombre = document.getElementById('nueva-nombre').value.trim();
+  const sheetId = document.getElementById('nueva-sheet-id').value.trim();
+  const scriptUrl = document.getElementById('nueva-script-url').value.trim();
+  if (!nombre || !sheetId || !scriptUrl) { alert('Rellena todos los campos.'); return; }
+  const asignaturas = cargarAsignaturas();
+  asignaturas.push({ id: Date.now().toString(), nombre, sheetId, scriptUrl });
+  localStorage.setItem(ASIGNATURAS_KEY, JSON.stringify(asignaturas));
+  document.getElementById('nueva-nombre').value = '';
+  document.getElementById('nueva-sheet-id').value = '';
+  document.getElementById('nueva-script-url').value = '';
+  renderizarListaAsignaturas();
+  irA('screen-asignaturas');
+}
+
+function renderizarListaAsignaturas() {
+  const asignaturas = cargarAsignaturas();
+  const container = document.getElementById('lista-asignaturas');
+  if (asignaturas.length === 0) {
+    container.innerHTML = '<p style="font-size:13px;color:#888;margin-bottom:12px;">No hay asignaturas registradas aún.</p>';
+    return;
+  }
+  container.innerHTML = asignaturas.map(a => `
+    <div class="list-item" onclick="abrirAsignatura('${a.id}')">
+      <div>
+        <div class="list-item-title">${a.nombre}</div>
+        <div class="list-item-sub">Sheet: ${a.sheetId.slice(0,20)}...</div>
+      </div>
+      <span style="font-size:18px;">→</span>
+    </div>`).join('');
+}
+
+function abrirAsignatura(id) {
+  const asignaturas = cargarAsignaturas();
+  asignaturaActual = asignaturas.find(a => a.id === id);
+  if (!asignaturaActual) return;
+  todasLasPreguntas = [];
+  document.getElementById('panel-asignatura-nombre').textContent = asignaturaActual.nombre;
+  cargarAlumnosAsignatura();
+  irA('screen-panel-asignatura');
+}
+
+// ═══════════════════════════════════════════════════════
+// LOGIN
+// ═══════════════════════════════════════════════════════
+function loginProfesor() {
+  const pwd = document.getElementById('login-password').value;
+  if (pwd === CONFIG.password) {
+    localStorage.setItem(PROFESOR_KEY, '1');
+    renderizarListaAsignaturas();
+    irA('screen-asignaturas');
+  } else {
+    alert('Contraseña incorrecta.');
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// API CALLS
+// ═══════════════════════════════════════════════════════
+async function api(params) {
+  const url = asignaturaActual.scriptUrl + '?' + new URLSearchParams(params).toString();
+  const resp = await fetch(url);
+  return resp.json();
+}
+
+async function apiUrl(url) {
+  const resp = await fetch(url);
+  return resp.json();
+}
+
+// ═══════════════════════════════════════════════════════
+// ALUMNOS
+// ═══════════════════════════════════════════════════════
+async function cargarAlumnosAsignatura() {
+  try {
+    const data = await api({ action: 'getAlumnos' });
+    alumnosActuales = Array.isArray(data) ? data : [];
+    renderizarAlumnos();
+    actualizarSelectAlumnos();
+  } catch(e) { alumnosActuales = []; }
+}
+
+function renderizarAlumnos() {
+  const container = document.getElementById('lista-alumnos-panel');
+  if (!alumnosActuales.length) {
+    container.innerHTML = '<p style="font-size:13px;color:#888;">No hay alumnos registrados.</p>';
+    return;
+  }
+  container.innerHTML = alumnosActuales.map(a => `
+    <div class="list-item" style="cursor:default;">
+      <div>
+        <div class="list-item-title">${a.nombre}</div>
+        <div class="list-item-sub">ID: ${a.alumno_id}</div>
+      </div>
+      <span class="badge badge-alumno">Activo</span>
+    </div>`).join('');
+}
+
+function actualizarSelectAlumnos() {
+  const selects = ['examen-alumno', 'metricas-alumno-select'];
+  selects.forEach(id => {
+    const sel = document.getElementById(id);
+    if (!sel) return;
+    sel.innerHTML = '<option value="">— Selecciona alumno —</option>';
+    alumnosActuales.forEach(a => {
+      sel.innerHTML += `<option value="${a.alumno_id}">${a.nombre}</option>`;
+    });
+  });
+}
+
+async function crearAlumno() {
+  const nombre = document.getElementById('alumno-nombre-input').value.trim();
+  if (!nombre) { alert('Introduce el nombre del alumno.'); return; }
+  const alumnoId = 'AL-' + Date.now().toString(36).toUpperCase();
+  try {
+    await api({ action: 'crearAlumno', alumno_id: alumnoId, nombre, fecha: new Date().toISOString() });
+    document.getElementById('alumno-nombre-input').value = '';
+    await cargarAlumnosAsignatura();
+    alert('Alumno "' + nombre + '" creado correctamente.');
+  } catch(e) { alert('Error al crear el alumno.'); }
+}
+
+// ═══════════════════════════════════════════════════════
+// PREGUNTAS Y TEMAS
+// ═══════════════════════════════════════════════════════
+async function cargarPreguntas() {
+  if (todasLasPreguntas.length > 0) return todasLasPreguntas;
+  const data = await api({ action: 'getPreguntas' });
+  todasLasPreguntas = data.slice(1).map((row, i) => ({
+    id: i+1, tema: row[0], tema_nombre: row[1],
+    concepto_id: row[2], concepto: row[3], enunciado: row[4],
+    opciones: { a: row[5], b: row[6], c: row[7], d: row[8] },
+    respuesta_correcta: (row[9]||'').toString().toUpperCase().trim()
+  }));
+  return todasLasPreguntas;
+}
+
+async function initTemasGrid() {
+  try {
+    const preguntas = await cargarPreguntas();
+    const temas = [...new Set(preguntas.map(p => p.tema))].sort((a,b) => {
+      const na = parseInt(a.replace('T','')); const nb = parseInt(b.replace('T',''));
+      return na - nb;
+    });
+    const grid = document.getElementById('temas-grid-examen');
+    grid.innerHTML = '';
+    temas.forEach(t => {
+      const nombre = preguntas.find(p => p.tema === t)?.tema_nombre || t;
+      const div = document.createElement('div');
+      div.className = 'tema-check';
+      div.dataset.tema = t;
+      div.textContent = t + ' · ' + nombre;
+      div.onclick = () => { div.classList.toggle('selected'); actualizarMsgPriorizacion(); };
+      grid.appendChild(div);
+    });
+  } catch(e) {}
+}
+
+// ═══════════════════════════════════════════════════════
+// PRIORIZACIÓN
+// ═══════════════════════════════════════════════════════
+async function calcularPriorizacion(alumnoId, temasSeleccionados) {
+  try {
+    const respuestas = await api({ action: 'getRespuestasAlumno', alumno_id: alumnoId });
+    if (!Array.isArray(respuestas) || respuestas.length === 0) return null;
+
+    // Contar exámenes completados por este alumno
+    const examenes = await api({ action: 'getExamenesAlumno', alumno_id: alumnoId });
+    if (!Array.isArray(examenes) || examenes.filter(e => e.completado === 'SI').length < 2) return null;
+
+    // Calcular ratio por concepto dentro de los temas seleccionados
+    const porConcepto = {};
+    respuestas.filter(r => temasSeleccionados.includes(r.tema)).forEach(r => {
+      const key = r.tema + '|||' + r.concepto;
+      if (!porConcepto[key]) porConcepto[key] = { tema: r.tema, concepto: r.concepto, total: 0, correctas: 0 };
+      porConcepto[key].total++;
+      if (r.es_correcta === 'SI') porConcepto[key].correctas++;
+    });
+
+    const pesos = {};
+    Object.entries(porConcepto).forEach(([key, d]) => {
+      const ratio = d.correctas / d.total;
+      if (ratio < 0.6) pesos[key] = { ...d, peso: 3, nivel: 'alto' };       // reforzar
+      else if (ratio > 0.9) pesos[key] = { ...d, peso: 0.5, nivel: 'bajo' }; // reducir
+      else pesos[key] = { ...d, peso: 1, nivel: 'normal' };
+    });
+
+    return Object.keys(pesos).length > 0 ? pesos : null;
+  } catch(e) { return null; }
+}
+
+function aplicarPriorizacion(preguntas, pesos, numTotal) {
+  if (!pesos) return preguntas.sort(() => Math.random() - 0.5).slice(0, numTotal);
+
+  // Separar por nivel de prioridad
+  const altas = [], normales = [], bajas = [], sinHistorial = [];
+  preguntas.forEach(p => {
+    const key = p.tema + '|||' + p.concepto;
+    if (!pesos[key]) sinHistorial.push(p);
+    else if (pesos[key].nivel === 'alto') altas.push(p);
+    else if (pesos[key].nivel === 'bajo') bajas.push(p);
+    else normales.push(p);
+  });
+
+  // Distribuir proporcionalmente
+  const mezcla = [
+    ...altas.sort(() => Math.random() - 0.5),
+    ...normales.sort(() => Math.random() - 0.5),
+    ...sinHistorial.sort(() => Math.random() - 0.5),
+    ...bajas.sort(() => Math.random() - 0.5)
+  ];
+
+  // Rellenar hasta numTotal respetando proporciones
+  const resultado = [];
+  const targetAltas = Math.min(altas.length, Math.floor(numTotal * 0.5));
+  const targetNormales = Math.min(normales.length, Math.floor(numTotal * 0.35));
+  const targetBajas = Math.min(bajas.length, Math.floor(numTotal * 0.1));
+  const targetSinHistorial = numTotal - targetAltas - targetNormales - targetBajas;
+
+  resultado.push(...altas.slice(0, targetAltas));
+  resultado.push(...normales.slice(0, targetNormales));
+  resultado.push(...sinHistorial.slice(0, Math.max(0, targetSinHistorial)));
+  resultado.push(...bajas.slice(0, targetBajas));
+
+  // Si faltan preguntas rellena con lo que quede
+  if (resultado.length < numTotal) {
+    const yaIncluidas = new Set(resultado.map(p => p.id));
+    const resto = mezcla.filter(p => !yaIncluidas.has(p.id));
+    resultado.push(...resto.slice(0, numTotal - resultado.length));
+  }
+
+  return resultado.slice(0, numTotal).sort(() => Math.random() - 0.5);
+}
+
+async function actualizarMsgPriorizacion() {
+  const alumnoId = document.getElementById('examen-alumno').value;
+  const temas = [...document.querySelectorAll('.tema-check.selected')].map(el => el.dataset.tema);
+  const msg = document.getElementById('msg-priorizacion');
+  if (!alumnoId || temas.length === 0) { msg.style.display = 'none'; return; }
+
+  try {
+    const examenes = await api({ action: 'getExamenesAlumno', alumno_id: alumnoId });
+    if (!Array.isArray(examenes)) { msg.style.display = 'none'; return; }
+    const completados = examenes.filter(e => e.completado === 'SI').length;
+    if (completados >= 2) {
+      msg.style.display = 'block';
+      msg.textContent = '⚡ Priorización activa: las preguntas de conceptos con ratio < 60% tendrán más peso. Exámenes completados: ' + completados + '.';
+    } else {
+      msg.style.display = 'block';
+      msg.className = 'msg msg-warn';
+      msg.textContent = '⏳ La priorización se activará a partir del 3er examen. Exámenes completados: ' + completados + '.';
+    }
+  } catch(e) { msg.style.display = 'none'; }
+}
+
+// ═══════════════════════════════════════════════════════
+// GENERAR EXAMEN
+// ═══════════════════════════════════════════════════════
+function generarCodigo() {
+  const fecha = new Date().toISOString().slice(0,10).replace(/-/g,'');
+  const rand = Math.random().toString(36).substr(2,6).toUpperCase();
+  return 'EX-' + fecha + '-' + rand;
+}
+
+async function generarExamen() {
+  const alumnoId = document.getElementById('examen-alumno').value;
+  const numPreguntas = parseInt(document.getElementById('num-preguntas').value);
+  const temasSeleccionados = [...document.querySelectorAll('.tema-check.selected')].map(el => el.dataset.tema);
+  const alumno = alumnosActuales.find(a => a.alumno_id === alumnoId);
+
+  if (!alumnoId) { alert('Selecciona un alumno.'); return; }
+  if (temasSeleccionados.length === 0) { alert('Selecciona al menos un tema.'); return; }
+  if (!numPreguntas || numPreguntas < 1) { alert('Introduce un número válido de preguntas.'); return; }
+
+  const btn = document.getElementById('btn-generar');
+  btn.disabled = true; btn.textContent = 'Cargando preguntas...';
+
+  try {
+    const preguntas = await cargarPreguntas();
+    const filtradas = preguntas.filter(p => temasSeleccionados.includes(p.tema));
+    if (filtradas.length === 0) { alert('No hay preguntas para los temas seleccionados.'); return; }
+
+    // Calcular priorización
+    btn.textContent = 'Calculando priorización...';
+    const pesos = await calcularPriorizacion(alumnoId, temasSeleccionados);
+    const seleccionadas = aplicarPriorizacion(filtradas, pesos, Math.min(numPreguntas, filtradas.length));
+
+    const codigo = generarCodigo();
+    const fecha = new Date().toISOString();
+
+    btn.textContent = 'Guardando examen...';
+    await api({ action: 'guardarExamen', codigo, fecha, alumno_id: alumnoId, alumna: alumno.nombre, temas: temasSeleccionados.join(','), num_preguntas: seleccionadas.length });
+
+    const bloques = [];
+    for (let i = 0; i < seleccionadas.length; i += BLOQUE_SIZE) bloques.push(seleccionadas.slice(i, i + BLOQUE_SIZE));
+
+    for (let b = 0; b < bloques.length; b++) {
+      btn.textContent = 'Guardando bloque ' + (b+1) + '/' + bloques.length + '...';
+      const bloque = bloques[b].map(p => ({ id: p.id, tema: p.tema, tema_nombre: p.tema_nombre, concepto: p.concepto, enunciado: p.enunciado, opciones: p.opciones, respuesta_correcta: p.respuesta_correcta }));
+      const url = asignaturaActual.scriptUrl + '?action=guardarPreguntas&codigo=' + codigo + '&preguntas=' + encodeURIComponent(JSON.stringify(bloque));
+      await fetch(url);
+      await esperar(300);
+    }
+
+    const enlace = BASE_URL + '?asignatura=' + asignaturaActual.id + '&examen=' + codigo;
+    document.getElementById('enlace-generado').value = enlace;
+    document.getElementById('info-examen').textContent = 'Código: ' + codigo + ' — ' + seleccionadas.length + ' preguntas para ' + alumno.nombre + (pesos ? ' (con priorización)' : '');
+    document.getElementById('card-enlace').style.display = 'block';
+
+  } catch(e) {
+    alert('Error al generar el examen. Comprueba la conexión.');
+    console.error(e);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Generar examen';
+  }
+}
+
+function copiarEnlace() {
+  navigator.clipboard.writeText(document.getElementById('enlace-generado').value).then(() => {
+    const btn = document.querySelector('.link-box button');
+    btn.textContent = '✓ Copiado';
+    setTimeout(() => btn.textContent = 'Copiar', 2000);
+  });
+}
+
+// ═══════════════════════════════════════════════════════
+// EXAMEN ALUMNO
+// ═══════════════════════════════════════════════════════
+async function cargarExamenPorCodigo() {
+  const codigo = document.getElementById('codigo-input').value.trim().toUpperCase();
+  if (!codigo) { alert('Introduce el código del examen.'); return; }
+
+  // Necesitamos saber qué asignatura usar
+  if (!asignaturaActual) {
+    const asignaturas = cargarAsignaturas();
+    if (asignaturas.length === 1) {
+      asignaturaActual = asignaturas[0];
+    } else if (asignaturas.length === 0) {
+      alert('No hay asignaturas configuradas.');
+      return;
+    }
+  }
+  await iniciarExamen(codigo);
+}
+
+async function iniciarExamen(codigo) {
+  irA('screen-loading');
+  document.getElementById('loading-text').textContent = 'Cargando examen...';
+  try {
+    const data = await api({ action: 'getExamen', codigo });
+    if (data.error) { alert('No se encontró el examen. Pide al profesor que reenvíe el enlace.'); irA('screen-alumno-codigo'); return; }
+    examenActual = data; examenCodigo = codigo; respuestasAlumna = {};
+    renderizarExamen(); irA('screen-examen');
+  } catch(e) {
+    alert('Error al cargar el examen.');
+    irA('screen-alumno-codigo');
+  }
+}
+
+function renderizarExamen() {
+  document.getElementById('examen-titulo').textContent = examenActual.alumna || 'Examen';
+  actualizarProgreso();
+  const container = document.getElementById('preguntas-container');
+  container.innerHTML = '';
+  examenActual.preguntas.forEach((p, idx) => {
+    const div = document.createElement('div');
+    div.className = 'pregunta-card';
+    div.innerHTML = `
+      <div class="pregunta-num">Pregunta ${idx+1} · ${p.tema} · ${p.concepto}</div>
+      <div class="pregunta-texto">${p.enunciado}</div>
+      <div class="opciones">
+        ${['a','b','c','d'].map(l => `
+          <div class="opcion" id="op-${idx}-${l}" onclick="seleccionarOpcion(${idx},'${l}')">
+            <div class="opcion-letra">${l.toUpperCase()}</div>
+            <div class="opcion-texto">${p.opciones[l]}</div>
+          </div>`).join('')}
+      </div>`;
+    container.appendChild(div);
+  });
+}
+
+function seleccionarOpcion(idx, letra) {
+  ['a','b','c','d'].forEach(l => document.getElementById('op-'+idx+'-'+l)?.classList.remove('selected'));
+  document.getElementById('op-'+idx+'-'+letra).classList.add('selected');
+  respuestasAlumna[idx] = letra.toUpperCase();
+  actualizarProgreso();
+}
+
+function actualizarProgreso() {
+  const total = examenActual.preguntas.length;
+  const respondidas = Object.keys(respuestasAlumna).length;
+  const pct = Math.round(respondidas/total*100);
+  document.getElementById('progress-fill').style.width = pct + '%';
+  document.getElementById('progress-text').textContent = respondidas + ' de ' + total + ' preguntas respondidas';
+  document.getElementById('examen-badge').textContent = respondidas + '/' + total;
+}
+
+async function enviarExamen() {
+  const total = examenActual.preguntas.length;
+  const respondidas = Object.keys(respuestasAlumna).length;
+  if (respondidas < total) {
+    if (!confirm('Tienes ' + (total-respondidas) + ' preguntas sin responder. ¿Enviar igualmente?')) return;
+  }
+  irA('screen-loading');
+  document.getElementById('loading-text').textContent = 'Guardando resultados...';
+  const ahora = new Date().toISOString();
+  let correctas = 0;
+  const filas = [];
+  examenActual.preguntas.forEach((p, idx) => {
+    const r = respuestasAlumna[idx] || '';
+    const ok = r === p.respuesta_correcta;
+    if (ok) correctas++;
+    filas.push([examenCodigo+'-'+(idx+1), examenCodigo, examenActual.alumna, examenActual.alumno_id||'', p.id, p.tema, p.concepto, r, p.respuesta_correcta, ok?'SI':'NO', ahora]);
+  });
+  try {
+    await api({ action: 'guardarRespuestas', codigo: examenCodigo, filas: encodeURIComponent(JSON.stringify(filas)) });
+  } catch(e) { console.warn(e); }
+  mostrarResultados(correctas, total);
+}
+
+function mostrarResultados(correctas, total) {
+  const falladas = examenActual.preguntas.filter((p,i) => { const r=respuestasAlumna[i]||''; return r!==p.respuesta_correcta&&r!==''; }).length;
+  const sinResponder = total - Object.keys(respuestasAlumna).length;
+  const nota = (correctas/total*10).toFixed(1);
+  const notaColor = nota>=5?'#188038':nota>=4?'#f9a825':'#d93025';
+  const porTema = {};
+  examenActual.preguntas.forEach((p,idx) => {
+    if (!porTema[p.tema]) porTema[p.tema] = {total:0,correctas:0,nombre:p.tema_nombre};
+    porTema[p.tema].total++;
+    if ((respuestasAlumna[idx]||'')===p.respuesta_correcta) porTema[p.tema].correctas++;
+  });
+  let html = `<div class="card">
+    <div style="text-align:center;padding:20px 0;">
+      <div class="score-big">${correctas}/${total}</div>
+      <div class="score-sub">preguntas correctas</div>
+      <div class="score-nota" style="color:${notaColor}">${nota} / 10</div>
+    </div>
+    <div class="stats-row">
+      <div class="stat-box"><div class="stat-num" style="color:#188038">${correctas}</div><div class="stat-label">Correctas</div></div>
+      <div class="stat-box"><div class="stat-num" style="color:#d93025">${falladas}</div><div class="stat-label">Falladas</div></div>
+      <div class="stat-box"><div class="stat-num" style="color:#f9a825">${sinResponder}</div><div class="stat-label">Sin resp.</div></div>
+    </div>
+  </div>
+  <div class="card"><h2>Por tema</h2>`;
+  Object.entries(porTema).sort().forEach(([tema,d]) => {
+    const pct=Math.round(d.correctas/d.total*100);
+    const color=pct>=70?'#188038':pct>=50?'#f9a825':'#d93025';
+    html+=`<div style="margin-bottom:10px;">
+      <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+        <span style="font-size:13px;font-weight:600;">${tema} · ${d.nombre}</span>
+        <span style="font-size:13px;font-weight:600;color:${color}">${d.correctas}/${d.total} (${pct}%)</span>
+      </div>
+      <div class="mini-bar"><div class="mini-fill" style="width:${pct}%;background:${color}"></div></div>
+    </div>`;
+  });
+  html+=`</div><div class="card"><h2>Revisión</h2>`;
+  examenActual.preguntas.forEach((p,idx) => {
+    const r=respuestasAlumna[idx]||null;
+    const ok=r===p.respuesta_correcta;
+    const icono=!r?'⬜':ok?'✅':'❌';
+    html+=`<div style="margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid #f0f0f0;">
+      <div style="font-size:11px;color:#888;margin-bottom:4px;">${icono} P${idx+1} · ${p.tema} · ${p.concepto}</div>
+      <div style="font-size:13px;font-weight:500;margin-bottom:9px;">${p.enunciado}</div>
+      <div style="display:flex;flex-direction:column;gap:5px;">
+        ${['a','b','c','d'].map(l=>{
+          let s='padding:7px 11px;border-radius:6px;font-size:12px;border:1px solid #e0e0e0;';let pre='';
+          if(l.toUpperCase()===p.respuesta_correcta){s+='background:#e6f4ea;border-color:#188038;color:#188038;font-weight:500;';pre='✓ ';}
+          else if(r&&l.toUpperCase()===r&&!ok){s+='background:#fce8e6;border-color:#d93025;color:#d93025;';pre='✗ ';}
+          return`<div style="${s}">${pre}${l.toUpperCase()}) ${p.opciones[l]}</div>`;
+        }).join('')}
+      </div></div>`;
+  });
+  html+=`</div><button class="btn btn-primary btn-full" onclick="irA('screen-inicio')" style="margin-bottom:32px;">Volver al inicio</button>`;
+  document.getElementById('resultados-container').innerHTML = html;
+  irA('screen-resultados');
+}
+
+// ═══════════════════════════════════════════════════════
+// MÉTRICAS
+// ═══════════════════════════════════════════════════════
+async function cargarMetricas() {
+  await cargarAlumnosAsignatura();
+  actualizarSelectAlumnos();
+  document.getElementById('metricas-content').style.display = 'none';
+  irA('screen-metricas');
+}
+
+async function cambiarAlumnoMetricas() {
+  const alumnoId = document.getElementById('metricas-alumno-select').value;
+  if (!alumnoId) { document.getElementById('metricas-content').style.display = 'none'; return; }
+  irA('screen-loading');
+  document.getElementById('loading-text').textContent = 'Cargando métricas...';
+  try {
+    const [respuestas, examenes] = await Promise.all([
+      api({ action: 'getRespuestasAlumno', alumno_id: alumnoId }),
+      api({ action: 'getExamenesAlumno', alumno_id: alumnoId })
+    ]);
+    alumnoMetricasActual = alumnoId;
+    datosMetricas = { respuestas: Array.isArray(respuestas)?respuestas:[], examenes: Array.isArray(examenes)?examenes:[] };
+    renderizarTodasMetricas();
+    document.getElementById('metricas-content').style.display = 'block';
+    irA('screen-metricas');
+  } catch(e) {
+    alert('Error al cargar métricas.');
+    irA('screen-metricas');
+  }
+}
+
+function switchMetricaTab(tab) {
+  ['global','examenes','conceptos'].forEach(t => {
+    document.getElementById('tab-'+t).style.display = t===tab?'block':'none';
+    document.getElementById('tab-btn-'+t).classList.toggle('active', t===tab);
+  });
+}
+
+function renderizarTodasMetricas() {
+  const { respuestas, examenes } = datosMetricas;
+  const examenesCompletados = examenes.filter(e=>e.completado==='SI').sort((a,b)=>new Date(a.fecha)-new Date(b.fecha));
+
+  const porExamen = {};
+  respuestas.forEach(r => {
+    if (!porExamen[r.examen_id]) porExamen[r.examen_id] = [];
+    porExamen[r.examen_id].push(r);
+  });
+
+  const notasPorExamen = examenesCompletados.map(e => {
+    const rs = porExamen[e.examen_id]||[];
+    const correctas = rs.filter(r=>r.es_correcta==='SI').length;
+    return { ...e, correctas, total: rs.length, nota: rs.length>0?(correctas/rs.length*10):0 };
+  });
+
+  renderizarGrafica(notasPorExamen);
+  renderizarTablaTemas(notasPorExamen, porExamen);
+  renderizarConceptos(respuestas);
+  renderizarListaExamenesMetricas(notasPorExamen, porExamen);
+}
+
+function renderizarGrafica(notasPorExamen) {
+  const chart = document.getElementById('chart-notas');
+  chart.innerHTML = '';
+  if (!notasPorExamen.length) { chart.innerHTML = '<p style="color:#888;font-size:13px;">Sin datos.</p>'; return; }
+  notasPorExamen.forEach((e,i) => {
+    const pct = e.nota/10*100;
+    const color = e.nota>=5?'#1a73e8':e.nota>=4?'#f9a825':'#d93025';
+    const fecha = new Date(e.fecha).toLocaleDateString('es-ES',{day:'2-digit',month:'2-digit'});
+    const div = document.createElement('div');
+    div.className = 'bar-col';
+    div.innerHTML = `<div class="bar-val" style="color:${color}">${e.nota.toFixed(1)}</div>
+      <div class="bar-rect" style="height:${pct}%;background:${color};opacity:0.85;"></div>
+      <div class="bar-lbl">${fecha}</div>`;
+    chart.appendChild(div);
+  });
+}
+
+function renderizarTablaTemas(notasPorExamen, porExamen) {
+  const wrap = document.getElementById('tabla-temas-wrap');
+  if (!notasPorExamen.length) { wrap.innerHTML = '<p style="color:#888;font-size:13px;">Sin datos.</p>'; return; }
+  const temas = new Set();
+  Object.values(porExamen).forEach(rs => rs.forEach(r => temas.add(r.tema)));
+  const temasOrd = [...temas].sort((a,b)=>parseInt(a.replace('T',''))-parseInt(b.replace('T','')));
+  let html = '<table class="tabla"><thead><tr><th>Examen</th><th>Fecha</th><th>Nota</th>';
+  temasOrd.forEach(t => html += `<th>${t}</th>`);
+  html += '</tr></thead><tbody>';
+  notasPorExamen.forEach((e,i) => {
+    const rs = porExamen[e.examen_id]||[];
+    const color = e.nota>=5?'#188038':e.nota>=4?'#f9a825':'#d93025';
+    const fecha = new Date(e.fecha).toLocaleDateString('es-ES',{day:'2-digit',month:'2-digit',year:'2-digit'});
+    html += `<tr><td style="font-weight:600;">E${i+1}</td><td>${fecha}</td><td style="font-weight:700;color:${color}">${e.nota.toFixed(1)}</td>`;
+    temasOrd.forEach(t => {
+      const rsTema = rs.filter(r=>r.tema===t);
+      if (!rsTema.length) { html += '<td style="color:#ccc;">—</td>'; return; }
+      const pct = Math.round(rsTema.filter(r=>r.es_correcta==='SI').length/rsTema.length*100);
+      const c = pct>=70?'#188038':pct>=50?'#f9a825':'#d93025';
+      html += `<td style="font-weight:600;color:${c}">${pct}%</td>`;
+    });
+    html += '</tr>';
+  });
+  html += '</tbody></table>';
+  wrap.innerHTML = html;
+}
+
+function renderizarConceptos(respuestas) {
+  const porConcepto = {};
+  respuestas.forEach(r => {
+    const key = r.tema+'|||'+r.concepto;
+    if (!porConcepto[key]) porConcepto[key] = {tema:r.tema,concepto:r.concepto,total:0,correctas:0};
+    porConcepto[key].total++;
+    if (r.es_correcta==='SI') porConcepto[key].correctas++;
+  });
+
+  const todos = Object.values(porConcepto)
+    .filter(d=>d.total>=2)
+    .map(d=>({...d,pct:Math.round(d.correctas/d.total*100)}))
+    .sort((a,b)=>a.pct-b.pct);
+
+  const flojos = todos.filter(d=>d.pct<60);
+  const dominados = todos.filter(d=>d.pct>90);
+  const progreso = todos.filter(d=>d.pct>=60&&d.pct<=90);
+
+  const renderGrupo = (items, container) => {
+    if (!items.length) { document.getElementById(container).innerHTML = '<p style="font-size:13px;color:#888;">Sin datos suficientes.</p>'; return; }
+    let html = '';
+    items.forEach(d => {
+      const color = d.pct>=70?'#188038':d.pct>=50?'#f9a825':'#d93025';
+      html += `<div style="margin-bottom:9px;">
+        <div style="display:flex;justify-content:space-between;margin-bottom:3px;">
+          <span style="font-size:12px;">${d.tema} · ${d.concepto}</span>
+          <span style="font-size:12px;font-weight:600;color:${color}">${d.pct}% (${d.correctas}/${d.total})</span>
+        </div>
+        <div class="mini-bar"><div class="mini-fill" style="width:${d.pct}%;background:${color}"></div></div>
+      </div>`;
+    });
+    document.getElementById(container).innerHTML = html;
+  };
+
+  renderGrupo(flojos, 'conceptos-flojos');
+  renderGrupo(dominados, 'conceptos-dominados');
+  renderGrupo(progreso, 'conceptos-progreso');
+}
+
+function renderizarListaExamenesMetricas(notasPorExamen, porExamen) {
+  const container = document.getElementById('lista-examenes-metricas');
+  if (!notasPorExamen.length) { container.innerHTML = '<p style="font-size:13px;color:#888;">Sin exámenes completados.</p>'; return; }
+  container.innerHTML = '';
+  notasPorExamen.forEach((e,i) => {
+    const color = e.nota>=5?'#188038':e.nota>=4?'#f9a825':'#d93025';
+    const fecha = new Date(e.fecha).toLocaleDateString('es-ES',{day:'2-digit',month:'2-digit',year:'numeric'});
+    const div = document.createElement('div');
+    div.className = 'list-item';
+    div.onclick = () => mostrarDetalleExamen(e, i, notasPorExamen, porExamen);
+    div.innerHTML = `
+      <div>
+        <div class="list-item-title">Examen ${i+1} · ${e.temas?.split(',').join(', ')||''}</div>
+        <div class="list-item-sub">${fecha} · ${e.total} preguntas</div>
+      </div>
+      <div style="font-size:20px;font-weight:700;color:${color};background:${color}18;padding:5px 11px;border-radius:8px;">${e.nota.toFixed(1)}</div>`;
+    container.appendChild(div);
+  });
+}
+
+function mostrarDetalleExamen(examen, idx, todos, porExamen) {
+  const rs = porExamen[examen.examen_id]||[];
+  const anterior = idx>0?todos[idx-1]:null;
+  const rsAnt = anterior?(porExamen[anterior.examen_id]||[]):null;
+  const color = examen.nota>=5?'#188038':examen.nota>=4?'#f9a825':'#d93025';
+  const fecha = new Date(examen.fecha).toLocaleDateString('es-ES',{day:'2-digit',month:'2-digit',year:'numeric'});
+
+  let deltaHtml = '';
+  if (anterior) {
+    const diff = (examen.nota - anterior.nota).toFixed(1);
+    const cls = diff>0?'delta-up':diff<0?'delta-down':'delta-same';
+    deltaHtml = `<span class="delta ${cls}">${diff>0?'+':''}${diff}</span>`;
+  }
+
+  const porTema = {};
+  rs.forEach(r => {
+    if (!porTema[r.tema]) porTema[r.tema] = {total:0,correctas:0};
+    porTema[r.tema].total++;
+    if (r.es_correcta==='SI') porTema[r.tema].correctas++;
+  });
+
+  const porTemaAnt = {};
+  if (rsAnt) rsAnt.forEach(r => {
+    if (!porTemaAnt[r.tema]) porTemaAnt[r.tema] = {total:0,correctas:0};
+    porTemaAnt[r.tema].total++;
+    if (r.es_correcta==='SI') porTemaAnt[r.tema].correctas++;
+  });
+
+  let html = `<div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+      <h2>Examen ${idx+1}</h2>
+      <div style="font-size:22px;font-weight:700;color:${color}">${examen.nota.toFixed(1)} ${deltaHtml}</div>
+    </div>
+    <div style="font-size:12px;color:#888;margin-bottom:14px;">${fecha} · ${examen.temas||''} · ${examen.total} preguntas</div>
+    <div class="stats-row">
+      <div class="stat-box"><div class="stat-num" style="color:#188038">${examen.correctas}</div><div class="stat-label">Correctas</div></div>
+      <div class="stat-box"><div class="stat-num" style="color:#d93025">${examen.total-examen.correctas}</div><div class="stat-label">Falladas</div></div>
+      <div class="stat-box"><div class="stat-num" style="color:#888">${parseInt(examen.num_preguntas||0)-examen.total}</div><div class="stat-label">Sin resp.</div></div>
+    </div>
+  </div>
+  <div class="card"><h2>Por tema ${anterior?'<span style="font-size:11px;color:#888;font-weight:400;">vs anterior</span>':''}</h2>`;
+
+  Object.entries(porTema).sort().forEach(([tema,d]) => {
+    const pct = Math.round(d.correctas/d.total*100);
+    const c = pct>=70?'#188038':pct>=50?'#f9a825':'#d93025';
+    let cmp = '';
+    if (porTemaAnt[tema]) {
+      const pctA = Math.round(porTemaAnt[tema].correctas/porTemaAnt[tema].total*100);
+      const diff = pct-pctA;
+      const cls = diff>0?'delta-up':diff<0?'delta-down':'delta-same';
+      cmp = `<span class="delta ${cls}">${diff>0?'+':''}${diff}%</span>`;
+    }
+    html += `<div style="margin-bottom:9px;">
+      <div style="display:flex;justify-content:space-between;margin-bottom:3px;align-items:center;">
+        <span style="font-size:12px;font-weight:600;">${tema}</span>
+        <span style="font-size:12px;font-weight:600;color:${c}">${d.correctas}/${d.total} (${pct}%) ${cmp}</span>
+      </div>
+      <div class="mini-bar"><div class="mini-fill" style="width:${pct}%;background:${c}"></div></div>
+    </div>`;
+  });
+
+  html += '</div>';
+  document.getElementById('detalle-examen-wrap').innerHTML = html;
+  document.getElementById('detalle-examen-wrap').scrollIntoView({behavior:'smooth'});
+}
+
+// ═══════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════
+const urlParams = new URLSearchParams(window.location.search);
+const asignaturaUrl = urlParams.get('asignatura');
+const codigoUrl = urlParams.get('examen');
+
+if (asignaturaUrl && codigoUrl) {
+  const asignaturas = cargarAsignaturas();
+  asignaturaActual = asignaturas.find(a => a.id === asignaturaUrl);
+  if (asignaturaActual) iniciarExamen(codigoUrl.toUpperCase());
+} else if (codigoUrl) {
+  // Compatibilidad con enlaces antiguos
+  const asignaturas = cargarAsignaturas();
+  if (asignaturas.length === 1) {
+    asignaturaActual = asignaturas[0];
+    iniciarExamen(codigoUrl.toUpperCase());
+  }
+}
+
+// Cargar temas cuando se abre pantalla generar examen
+document.getElementById('screen-generar-examen').addEventListener('click', () => {}, { once: false });
+</script>
+</body>
+</html>
