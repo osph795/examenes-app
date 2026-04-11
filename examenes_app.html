@@ -792,7 +792,7 @@ async function generarExamen() {
       await esperar(300);
     }
 
-    const enlace = BASE_URL + '?asignatura=' + asignaturaActual.id + '&examen=' + codigo;
+    const enlace = BASE_URL + '?examen=' + codigo + '&su=' + encodeURIComponent(asignaturaActual.scriptUrl);
     document.getElementById('enlace-generado').value = enlace;
     document.getElementById('info-examen').textContent = 'Código: ' + codigo + ' — ' + seleccionadas.length + ' preguntas para ' + alumno.nombre + (pesos ? ' (con priorización)' : '');
     document.getElementById('card-enlace').style.display = 'block';
@@ -1198,15 +1198,15 @@ function mostrarDetalleExamen(examen, idx, todos, porExamen) {
 // INIT
 // ═══════════════════════════════════════════════════════
 const urlParams = new URLSearchParams(window.location.search);
-const asignaturaUrl = urlParams.get('asignatura');
 const codigoUrl = urlParams.get('examen');
+const scriptUrl = urlParams.get('su');
 
-if (asignaturaUrl && codigoUrl) {
-  const asignaturas = cargarAsignaturas();
-  asignaturaActual = asignaturas.find(a => a.id === asignaturaUrl);
-  if (asignaturaActual) iniciarExamen(codigoUrl.toUpperCase());
+if (codigoUrl && scriptUrl) {
+  // Alumno abriendo enlace desde cualquier dispositivo
+  asignaturaActual = { scriptUrl: decodeURIComponent(scriptUrl) };
+  iniciarExamen(codigoUrl.toUpperCase());
 } else if (codigoUrl) {
-  // Compatibilidad con enlaces antiguos
+  // Compatibilidad: buscar en localStorage
   const asignaturas = cargarAsignaturas();
   if (asignaturas.length === 1) {
     asignaturaActual = asignaturas[0];
