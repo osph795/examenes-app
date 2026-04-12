@@ -902,9 +902,42 @@ async function enviarExamen() {
     if (ok) correctas++;
     filas.push([examenCodigo+'-'+(idx+1), examenCodigo, examenActual.alumna, examenActual.alumno_id||'', p.id, p.tema, p.concepto, r, p.respuesta_correcta, ok?'SI':'NO', ahora]);
   });
-  try {
-    await api({ action: 'guardarRespuestas', codigo: examenCodigo, filas: encodeURIComponent(JSON.stringify(filas)) });
-  } catch(e) { console.warn(e); }
+
+  // Enviar por bloques de 10 con hasta 3 reintentos por bloque
+  const BLOQUE_RESP = 10;
+  let todoOk = true;
+  const bloques = [];
+  for (let i = 0; i < filas.length; i += BLOQUE_RESP) bloques.push(filas.slice(i, i + BLOQUE_RESP));
+
+  for (let b = 0; b < bloques.length; b++) {
+    document.getElementById('loading-text').textContent = 'Guardando respuestas ' + (b+1) + '/' + bloques.length + '...';
+    let guardado = false;
+    for (let intento = 0; intento < 3; intento++) {
+      try {
+        const url = asignaturaActual.scriptUrl + '?action=guardarRespuestasBloque&filas=' + encodeURIComponent(JSON.stringify(bloques[b]));
+        const resp = await fetch(url);
+        const data = await resp.json();
+        if (data.ok) { guardado = true; break; }
+      } catch(e) { await esperar(500); }
+    }
+    if (!guardado) { todoOk = false; break; }
+  }
+
+  if (!todoOk) {
+    alert('Hubo un problema guardando algunas respuestas. Por favor no cierres esta pantalla y avisa al profesor.');
+    irA('screen-examen');
+    return;
+  }
+
+  // Marcar examen como completado
+  for (let intento = 0; intento < 3; intento++) {
+    try {
+      const url = asignaturaActual.scriptUrl + '?action=marcarExamenCompletado&codigo=' + examenCodigo;
+      await fetch(url);
+      break;
+    } catch(e) { await esperar(500); }
+  }
+
   mostrarResultados(correctas, total);
 }
 
