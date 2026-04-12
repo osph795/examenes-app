@@ -400,6 +400,20 @@
       <div id="tab-conceptos" style="display:none;">
         <div class="card">
           <h2>Distribución de conceptos</h2>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">
+            <div>
+              <label>Desde examen</label>
+              <select id="filtro-desde" style="margin-bottom:0;" onchange="filtrarTartaConceptos()">
+                <option value="">— Inicio —</option>
+              </select>
+            </div>
+            <div>
+              <label>Hasta examen</label>
+              <select id="filtro-hasta" style="margin-bottom:0;" onchange="filtrarTartaConceptos()">
+                <option value="">— Último —</option>
+              </select>
+            </div>
+          </div>
           <div id="tarta-conceptos"></div>
         </div>
         <div class="card">
@@ -1041,9 +1055,9 @@ async function cambiarAlumnoMetricas() {
     ]);
     alumnoMetricasActual = alumnoId;
     datosMetricas = { respuestas: Array.isArray(respuestas)?respuestas:[], examenes: Array.isArray(examenes)?examenes:[] };
-    renderizarTodasMetricas();
     document.getElementById('metricas-content').style.display = 'block';
     irA('screen-metricas');
+    setTimeout(() => renderizarTodasMetricas(), 50);
   } catch(e) {
     alert('Error al cargar métricas.');
     irA('screen-metricas');
@@ -1132,6 +1146,53 @@ function renderizarTablaTemas(notasPorExamen, porExamen) {
 }
 
 function renderizarConceptos(respuestas) {
+  // Poblar selectores con exámenes completados
+  const { examenes } = datosMetricas;
+  const examenesCompletados = examenes
+    .filter(e => e.completado === 'SI')
+    .sort((a,b) => new Date(a.fecha) - new Date(b.fecha));
+
+  const selDesde = document.getElementById('filtro-desde');
+  const selHasta = document.getElementById('filtro-hasta');
+  if (selDesde && selHasta) {
+    selDesde.innerHTML = '<option value="">— Inicio —</option>';
+    selHasta.innerHTML = '<option value="">— Último —</option>';
+    examenesCompletados.forEach((e, i) => {
+      const fecha = new Date(e.fecha).toLocaleDateString('es-ES',{day:'2-digit',month:'2-digit',year:'2-digit'});
+      selDesde.innerHTML += `<option value="${e.examen_id}">Examen ${i+1} · ${fecha}</option>`;
+      selHasta.innerHTML += `<option value="${e.examen_id}">Examen ${i+1} · ${fecha}</option>`;
+    });
+  }
+
+  calcularYRenderizarConceptos(respuestas);
+}
+
+function filtrarTartaConceptos() {
+  if (!datosMetricas) return;
+  const { respuestas, examenes } = datosMetricas;
+  const examenesCompletados = examenes
+    .filter(e => e.completado === 'SI')
+    .sort((a,b) => new Date(a.fecha) - new Date(b.fecha));
+
+  const desdeId = document.getElementById('filtro-desde').value;
+  const hastaId = document.getElementById('filtro-hasta').value;
+
+  const idxDesde = desdeId ? examenesCompletados.findIndex(e => e.examen_id === desdeId) : 0;
+  const idxHasta = hastaId ? examenesCompletados.findIndex(e => e.examen_id === hastaId) : examenesCompletados.length - 1;
+
+  if (idxDesde > idxHasta) {
+    alert('El examen de inicio debe ser anterior al examen final.');
+    return;
+  }
+
+  const examenesRango = examenesCompletados.slice(idxDesde, idxHasta + 1);
+  const idsRango = new Set(examenesRango.map(e => e.examen_id));
+  const respuestasFiltradas = respuestas.filter(r => idsRango.has(r.examen_id));
+
+  calcularYRenderizarConceptos(respuestasFiltradas);
+}
+
+function calcularYRenderizarConceptos(respuestas) {
   const porConcepto = {};
   respuestas.forEach(r => {
     const key = r.tema+'|||'+r.concepto;
