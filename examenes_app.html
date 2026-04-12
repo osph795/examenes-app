@@ -149,6 +149,15 @@
   .priority-high { background: #fce8e6; color: #d93025; }
   .priority-low { background: #e6f4ea; color: #188038; }
 
+  /* GRÁFICOS */
+  .chart-svg { width: 100%; overflow: visible; }
+  .pie-container { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
+  .pie-legend { display: flex; flex-direction: column; gap: 8px; flex: 1; min-width: 140px; }
+  .pie-legend-item { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+  .pie-legend-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+  .line-chart-wrap { overflow-x: auto; }
+  .chart-title { font-size: 12px; color: #888; margin-bottom: 8px; }
+
   @media (max-width: 480px) {
     .temas-grid { grid-template-columns: repeat(2,1fr); }
     .grid-2 { grid-template-columns: 1fr; }
@@ -365,6 +374,14 @@
           <div class="chart-wrap"><div class="chart" id="chart-notas"></div></div>
         </div>
         <div class="card">
+          <h2>Línea de evolución global</h2>
+          <div id="linea-global-container"></div>
+        </div>
+        <div class="card">
+          <h2>Evolución por tema</h2>
+          <div id="lineas-temas-container"></div>
+        </div>
+        <div class="card">
           <h2>Resultados por tema</h2>
           <div style="overflow-x:auto;" id="tabla-temas-wrap"></div>
         </div>
@@ -381,6 +398,10 @@
 
       <!-- CONCEPTOS -->
       <div id="tab-conceptos" style="display:none;">
+        <div class="card">
+          <h2>Distribución de conceptos</h2>
+          <div id="tarta-conceptos"></div>
+        </div>
         <div class="card">
           <h2>🔴 Conceptos a reforzar <span style="font-size:12px;font-weight:400;color:#888;">(ratio &lt; 60%)</span></h2>
           <div id="conceptos-flojos"></div>
@@ -1052,16 +1073,18 @@ function renderizarTodasMetricas() {
     return { ...e, correctas, total: rs.length, nota: rs.length>0?(correctas/rs.length*10):0 };
   });
 
-  renderizarGrafica(notasPorExamen);
+  renderizarGrafica(notasPorExamen, porExamen);
   renderizarTablaTemas(notasPorExamen, porExamen);
   renderizarConceptos(respuestas);
   renderizarListaExamenesMetricas(notasPorExamen, porExamen);
 }
 
-function renderizarGrafica(notasPorExamen) {
+function renderizarGrafica(notasPorExamen, porExamen) {
   const chart = document.getElementById('chart-notas');
   chart.innerHTML = '';
   if (!notasPorExamen.length) { chart.innerHTML = '<p style="color:#888;font-size:13px;">Sin datos.</p>'; return; }
+
+  // Barras
   notasPorExamen.forEach((e,i) => {
     const pct = e.nota/10*100;
     const color = e.nota>=5?'#1a73e8':e.nota>=4?'#f9a825':'#d93025';
@@ -1073,6 +1096,12 @@ function renderizarGrafica(notasPorExamen) {
       <div class="bar-lbl">${fecha}</div>`;
     chart.appendChild(div);
   });
+
+  // Línea global
+  document.getElementById('linea-global-container').innerHTML = crearLineaGlobal(notasPorExamen);
+
+  // Líneas por tema
+  document.getElementById('lineas-temas-container').innerHTML = crearLineasPorTema(notasPorExamen, porExamen);
 }
 
 function renderizarTablaTemas(notasPorExamen, porExamen) {
@@ -1119,6 +1148,14 @@ function renderizarConceptos(respuestas) {
   const flojos = todos.filter(d=>d.pct<60);
   const dominados = todos.filter(d=>d.pct>90);
   const progreso = todos.filter(d=>d.pct>=60&&d.pct<=90);
+
+  // Tarta distribución conceptos
+  const tartaData = [
+    { label: 'A reforzar (<60%)', value: flojos.length, color: '#d93025' },
+    { label: 'En progreso (60-90%)', value: progreso.length, color: '#f9a825' },
+    { label: 'Dominados (>90%)', value: dominados.length, color: '#188038' }
+  ];
+  document.getElementById('tarta-conceptos').innerHTML = crearTarta(tartaData, 70);
 
   const renderGrupo = (items, container) => {
     if (!items.length) { document.getElementById(container).innerHTML = '<p style="font-size:13px;color:#888;">Sin datos suficientes.</p>'; return; }
@@ -1189,17 +1226,20 @@ function mostrarDetalleExamen(examen, idx, todos, porExamen) {
     if (r.es_correcta==='SI') porTemaAnt[r.tema].correctas++;
   });
 
+  const sinResponder = parseInt(examen.num_preguntas||0) - examen.total;
+  const tartaExamen = crearTarta([
+    { label: 'Correctas', value: examen.correctas, color: '#188038' },
+    { label: 'Falladas', value: examen.total - examen.correctas, color: '#d93025' },
+    { label: 'Sin responder', value: sinResponder, color: '#e0e0e0' }
+  ], 70);
+
   let html = `<div class="card">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
       <h2>Examen ${idx+1}</h2>
       <div style="font-size:22px;font-weight:700;color:${color}">${examen.nota.toFixed(1)} ${deltaHtml}</div>
     </div>
     <div style="font-size:12px;color:#888;margin-bottom:14px;">${fecha} · ${examen.temas||''} · ${examen.total} preguntas</div>
-    <div class="stats-row">
-      <div class="stat-box"><div class="stat-num" style="color:#188038">${examen.correctas}</div><div class="stat-label">Correctas</div></div>
-      <div class="stat-box"><div class="stat-num" style="color:#d93025">${examen.total-examen.correctas}</div><div class="stat-label">Falladas</div></div>
-      <div class="stat-box"><div class="stat-num" style="color:#888">${parseInt(examen.num_preguntas||0)-examen.total}</div><div class="stat-label">Sin resp.</div></div>
-    </div>
+    ${tartaExamen}
   </div>
   <div class="card"><h2>Por tema ${anterior?'<span style="font-size:11px;color:#888;font-weight:400;">vs anterior</span>':''}</h2>`;
 
@@ -1225,6 +1265,149 @@ function mostrarDetalleExamen(examen, idx, todos, porExamen) {
   html += '</div>';
   document.getElementById('detalle-examen-wrap').innerHTML = html;
   document.getElementById('detalle-examen-wrap').scrollIntoView({behavior:'smooth'});
+}
+
+// ═══════════════════════════════════════════════════════
+// GRÁFICOS SVG
+// ═══════════════════════════════════════════════════════
+
+function crearTarta(datos, radio) {
+  // datos: [{label, value, color}]
+  const total = datos.reduce((s, d) => s + d.value, 0);
+  if (total === 0) return '<p style="font-size:13px;color:#888;">Sin datos.</p>';
+  const cx = radio + 10, cy = radio + 10;
+  const size = (radio + 10) * 2;
+  let angulo = -Math.PI / 2;
+  let paths = '';
+
+  datos.forEach(d => {
+    if (d.value === 0) return;
+    const porcion = (d.value / total) * Math.PI * 2;
+    const x1 = cx + radio * Math.cos(angulo);
+    const y1 = cy + radio * Math.sin(angulo);
+    const x2 = cx + radio * Math.cos(angulo + porcion);
+    const y2 = cy + radio * Math.sin(angulo + porcion);
+    const large = porcion > Math.PI ? 1 : 0;
+    paths += `<path d="M${cx},${cy} L${x1},${y1} A${radio},${radio} 0 ${large},1 ${x2},${y2} Z" fill="${d.color}" opacity="0.9"/>`;
+    angulo += porcion;
+  });
+
+  const legend = datos.map(d => `
+    <div class="pie-legend-item">
+      <div class="pie-legend-dot" style="background:${d.color}"></div>
+      <span><strong>${d.value}</strong> ${d.label} (${total>0?Math.round(d.value/total*100):0}%)</span>
+    </div>`).join('');
+
+  return `<div class="pie-container">
+    <svg viewBox="0 0 ${size} ${size}" width="${size}" height="${size}" class="chart-svg" style="max-width:${size}px;flex-shrink:0;">${paths}</svg>
+    <div class="pie-legend">${legend}</div>
+  </div>`;
+}
+
+function crearLineaGlobal(notasPorExamen) {
+  if (notasPorExamen.length < 2) return '<p style="font-size:13px;color:#888;">Necesitas al menos 2 exámenes para ver la evolución.</p>';
+  const W = 500, H = 160, pad = 36;
+  const maxY = 10, minY = 0;
+  const scaleX = i => pad + (i / (notasPorExamen.length - 1)) * (W - pad * 2);
+  const scaleY = v => H - pad - ((v - minY) / (maxY - minY)) * (H - pad * 2);
+
+  // Líneas de referencia
+  let refs = '';
+  [0,2,4,6,8,10].forEach(v => {
+    const y = scaleY(v);
+    refs += `<line x1="${pad}" y1="${y}" x2="${W-pad}" y2="${y}" stroke="#e0e0e0" stroke-width="1"/>`;
+    refs += `<text x="${pad-6}" y="${y+4}" font-size="10" fill="#aaa" text-anchor="end">${v}</text>`;
+  });
+
+  // Línea de aprobado
+  const yAprob = scaleY(5);
+  refs += `<line x1="${pad}" y1="${yAprob}" x2="${W-pad}" y2="${yAprob}" stroke="#f9a825" stroke-width="1" stroke-dasharray="4,3"/>`;
+
+  // Puntos y línea
+  const puntos = notasPorExamen.map((e, i) => ({ x: scaleX(i), y: scaleY(e.nota), nota: e.nota, fecha: new Date(e.fecha).toLocaleDateString('es-ES',{day:'2-digit',month:'2-digit'}) }));
+  let polyline = puntos.map((p,i) => i===0?`M${p.x},${p.y}`:`L${p.x},${p.y}`).join(' ');
+
+  let circles = puntos.map((p,i) => {
+    const color = p.nota>=5?'#1a73e8':p.nota>=4?'#f9a825':'#d93025';
+    return `<circle cx="${p.x}" cy="${p.y}" r="5" fill="${color}" stroke="#fff" stroke-width="2"/>
+            <text x="${p.x}" y="${p.y-10}" font-size="10" fill="${color}" text-anchor="middle" font-weight="bold">${p.nota.toFixed(1)}</text>
+            <text x="${p.x}" y="${H-8}" font-size="9" fill="#aaa" text-anchor="middle">E${i+1}</text>`;
+  }).join('');
+
+  return `<div class="line-chart-wrap">
+    <svg viewBox="0 0 ${W} ${H}" class="chart-svg">
+      ${refs}
+      <path d="${polyline}" fill="none" stroke="#1a73e8" stroke-width="2.5" stroke-linejoin="round"/>
+      ${circles}
+    </svg>
+  </div>`;
+}
+
+function crearLineasPorTema(notasPorExamen, porExamen) {
+  if (notasPorExamen.length < 2) return '<p style="font-size:13px;color:#888;">Necesitas al menos 2 exámenes para ver la evolución.</p>';
+
+  // Recoger todos los temas
+  const temas = new Set();
+  Object.values(porExamen).forEach(rs => rs.forEach(r => temas.add(r.tema)));
+  const temasOrd = [...temas].sort((a,b) => parseInt(a.replace('T',''))-parseInt(b.replace('T','')));
+
+  const COLORS = ['#1a73e8','#d93025','#188038','#f9a825','#9c27b0','#00acc1','#ff7043','#5c6bc0','#26a69a','#ef5350','#7cb342','#8d6e63'];
+  const W = 500, H = 200, pad = 40;
+  const scaleX = i => pad + (i / (notasPorExamen.length - 1)) * (W - pad * 2);
+  const scaleY = v => H - pad - (v / 100) * (H - pad * 2);
+
+  let refs = '';
+  [0,25,50,75,100].forEach(v => {
+    const y = scaleY(v);
+    refs += `<line x1="${pad}" y1="${y}" x2="${W-pad}" y2="${y}" stroke="#e0e0e0" stroke-width="1"/>`;
+    refs += `<text x="${pad-4}" y="${y+4}" font-size="9" fill="#aaa" text-anchor="end">${v}%</text>`;
+  });
+  // Línea 60%
+  const y60 = scaleY(60);
+  refs += `<line x1="${pad}" y1="${y60}" x2="${W-pad}" y2="${y60}" stroke="#d93025" stroke-width="1" stroke-dasharray="4,3" opacity="0.5"/>`;
+  // Línea 90%
+  const y90 = scaleY(90);
+  refs += `<line x1="${pad}" y1="${y90}" x2="${W-pad}" y2="${y90}" stroke="#188038" stroke-width="1" stroke-dasharray="4,3" opacity="0.5"/>`;
+
+  // Etiquetas eje X
+  let ejeX = notasPorExamen.map((e,i) => `<text x="${scaleX(i)}" y="${H-6}" font-size="9" fill="#aaa" text-anchor="middle">E${i+1}</text>`).join('');
+
+  let lineas = '';
+  temasOrd.forEach((tema, ti) => {
+    const color = COLORS[ti % COLORS.length];
+    const puntos = notasPorExamen.map((e, i) => {
+      const rs = (porExamen[e.examen_id]||[]).filter(r => r.tema === tema);
+      if (!rs.length) return null;
+      const pct = Math.round(rs.filter(r=>r.es_correcta==='SI').length/rs.length*100);
+      return { x: scaleX(i), y: scaleY(pct), pct };
+    });
+    const validos = puntos.filter(p => p !== null);
+    if (validos.length < 1) return;
+    let path = '';
+    let prev = null;
+    puntos.forEach((p, i) => {
+      if (!p) { prev = null; return; }
+      if (prev === null) path += `M${p.x},${p.y}`;
+      else path += `L${p.x},${p.y}`;
+      prev = p;
+    });
+    lineas += `<path d="${path}" fill="none" stroke="${color}" stroke-width="2" opacity="0.8"/>`;
+    validos.forEach(p => lineas += `<circle cx="${p.x}" cy="${p.y}" r="3.5" fill="${color}" stroke="#fff" stroke-width="1.5"/>`);
+  });
+
+  // Leyenda
+  const leyenda = temasOrd.map((t, ti) => {
+    const color = COLORS[ti % COLORS.length];
+    return `<div class="pie-legend-item"><div style="width:20px;height:3px;background:${color};border-radius:2px;flex-shrink:0;"></div><span>${t}</span></div>`;
+  }).join('');
+
+  return `<div class="line-chart-wrap">
+    <svg viewBox="0 0 ${W} ${H}" class="chart-svg">
+      ${refs}${ejeX}${lineas}
+    </svg>
+  </div>
+  <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;">${leyenda}</div>
+  <p style="font-size:11px;color:#aaa;margin-top:8px;">— — Rojo: umbral 60% &nbsp; — — Verde: umbral 90%</p>`;
 }
 
 // ═══════════════════════════════════════════════════════
