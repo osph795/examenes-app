@@ -180,7 +180,7 @@
         <h3>Profesor</h3>
         <p>Panel de gestión</p>
       </div>
-      <div class="sel-card" onclick="irA('screen-alumno-codigo')">
+      <div class="sel-card" onclick="irA('screen-alumno-pin')">
         <div class="icon">📝</div>
         <h3>Alumno</h3>
         <p>Acceder al examen</p>
@@ -299,6 +299,8 @@
       <h2>Añadir alumno</h2>
       <label>Nombre completo</label>
       <input type="text" id="alumno-nombre-input" placeholder="Ej: María García López">
+      <label>PIN de acceso (4 dígitos)</label>
+      <input type="text" id="alumno-pin-input" placeholder="Ej: 1234" maxlength="4" pattern="[0-9]{4}">
       <button class="btn btn-primary btn-full" onclick="crearAlumno()">Añadir alumno</button>
     </div>
     <div class="card">
@@ -431,6 +433,27 @@
           <div id="conceptos-progreso"></div>
         </div>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ ALUMNO: PIN ══ -->
+<div id="screen-alumno-pin" class="screen">
+  <div class="header">
+    <div style="display:flex;align-items:center;gap:10px;">
+      <button class="btn btn-secondary btn-sm" onclick="irA('screen-inicio')">← Volver</button>
+      <h1>Verificación de acceso</h1>
+    </div>
+    <span class="badge badge-alumno">Alumno</span>
+  </div>
+  <div class="inner" style="max-width:460px;">
+    <div class="card">
+      <h2>Introduce tu PIN</h2>
+      <p style="font-size:13px;color:#888;margin-bottom:14px;">Tu profesor te ha asignado un PIN personal de 4 dígitos.</p>
+      <label>PIN de acceso</label>
+      <input type="password" id="pin-input" placeholder="••••" maxlength="4" inputmode="numeric" onkeydown="if(event.key==='Enter')verificarPin()">
+      <button class="btn btn-primary btn-full" onclick="verificarPin()">Continuar</button>
+      <p id="pin-error" style="font-size:13px;color:#d93025;margin-top:10px;display:none;">PIN incorrecto. Inténtalo de nuevo.</p>
     </div>
   </div>
 </div>
@@ -617,7 +640,7 @@ function renderizarAlumnos() {
     <div class="list-item" style="cursor:default;">
       <div>
         <div class="list-item-title">${a.nombre}</div>
-        <div class="list-item-sub">ID: ${a.alumno_id}</div>
+        <div class="list-item-sub">ID: ${a.alumno_id} · PIN: ${a.pin || '—'}</div>
       </div>
       <span class="badge badge-alumno">Activo</span>
     </div>`).join('');
@@ -637,13 +660,16 @@ function actualizarSelectAlumnos() {
 
 async function crearAlumno() {
   const nombre = document.getElementById('alumno-nombre-input').value.trim();
+  const pin = document.getElementById('alumno-pin-input').value.trim();
   if (!nombre) { alert('Introduce el nombre del alumno.'); return; }
+  if (!pin || !/^\d{4}$/.test(pin)) { alert('Introduce un PIN de 4 dígitos numéricos.'); return; }
   const alumnoId = 'AL-' + Date.now().toString(36).toUpperCase();
   try {
-    await api({ action: 'crearAlumno', alumno_id: alumnoId, nombre, fecha: new Date().toISOString() });
+    await api({ action: 'crearAlumno', alumno_id: alumnoId, nombre, pin, fecha: new Date().toISOString() });
     document.getElementById('alumno-nombre-input').value = '';
+    document.getElementById('alumno-pin-input').value = '';
     await cargarAlumnosAsignatura();
-    alert('Alumno "' + nombre + '" creado correctamente.');
+    alert('Alumno "' + nombre + '" creado con PIN ' + pin + '.');
   } catch(e) { alert('Error al crear el alumno.'); }
 }
 
@@ -869,13 +895,71 @@ function copiarEnlace() {
 }
 
 // ═══════════════════════════════════════════════════════
+// PIN ALUMNO
+// ═══════════════════════════════════════════════════════
+let pinVerificado = false;
+let alumnoVerificado = null;
+let pendingExamenCodigo = null;
+
+async function verificarPin() {
+  const pinIntroducido = document.getElementById('pin-input').value.trim();
+  if (!pinIntroducido) { alert('Introduce tu PIN.'); return; }
+
+  if (!asignaturaActual) {
+    const asignaturas = cargarAsignaturas();
+    if (asignaturas.length === 1) {
+      asignaturaActual = asignaturas[0];
+    } else if (asignaturas.length === 0) {
+      alert('No hay asignaturas configuradas. Contacta con tu profesor.');
+      return;
+    } else {
+      alert('Accede mediante el enlace que te proporcionó tu profesor.');
+      return;
+    }
+  }
+
+  irA('screen-loading');
+  document.getElementById('loading-text').textContent = 'Verificando PIN...';
+
+  try {
+    const alumnos = await api({ action: 'getAlumnos' });
+    const alumno = alumnos.find(a => a.pin === pinIntroducido);
+    if (!alumno) {
+      document.getElementById('pin-error').style.display = 'block';
+      document.getElementById('pin-input').value = '';
+      irA('screen-alumno-pin');
+      return;
+    }
+    pinVerificado = true;
+    alumnoVerificado = alumno;
+    document.getElementById('pin-error').style.display = 'none';
+    document.getElementById('pin-input').value = '';
+    // Si viene por enlace directo con código pendiente, lanzar examen directamente
+    if (pendingExamenCodigo) {
+      await iniciarExamen(pendingExamenCodigo);
+      pendingExamenCodigo = null;
+    } else {
+      irA('screen-alumno-codigo');
+    }
+  } catch(e) {
+    alert('Error al verificar el PIN. Inténtalo de nuevo.');
+    irA('screen-alumno-pin');
+  }
+}
+
+// ═══════════════════════════════════════════════════════
 // EXAMEN ALUMNO
 // ═══════════════════════════════════════════════════════
 async function cargarExamenPorCodigo() {
   const codigo = document.getElementById('codigo-input').value.trim().toUpperCase();
   if (!codigo) { alert('Introduce el código del examen.'); return; }
 
-  // Necesitamos saber qué asignatura usar
+  // Verificar que el PIN ha sido validado (salvo si viene por enlace directo)
+  if (!pinVerificado && !asignaturaActual?.fromUrl) {
+    irA('screen-alumno-pin');
+    return;
+  }
+
   if (!asignaturaActual) {
     const asignaturas = cargarAsignaturas();
     if (asignaturas.length === 1) {
@@ -1499,9 +1583,11 @@ const codigoUrl = urlParams.get('examen');
 const scriptUrl = urlParams.get('su');
 
 if (codigoUrl && scriptUrl) {
-  // Alumno abriendo enlace desde cualquier dispositivo
-  asignaturaActual = { scriptUrl: decodeURIComponent(scriptUrl) };
-  iniciarExamen(codigoUrl.toUpperCase());
+  // Alumno abriendo enlace desde cualquier dispositivo — requiere PIN igualmente
+  asignaturaActual = { scriptUrl: decodeURIComponent(scriptUrl), fromUrl: true };
+  // Redirigir a pantalla PIN antes de cargar el examen
+  pendingExamenCodigo = codigoUrl.toUpperCase();
+  irA('screen-alumno-pin');
 } else if (codigoUrl) {
   // Compatibilidad: buscar en localStorage
   const asignaturas = cargarAsignaturas();
