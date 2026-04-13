@@ -326,6 +326,8 @@
       </select>
       <label>Temas a incluir</label>
       <div class="temas-grid" id="temas-grid-examen"></div>
+      <label>Fuente de preguntas</label>
+      <div id="fuentes-grid" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;"></div>
       <label>Número de preguntas</label>
       <input type="number" id="num-preguntas" value="60" min="5" max="200">
       <div class="msg msg-info" id="msg-priorizacion" style="display:none;"></div>
@@ -655,7 +657,8 @@ async function cargarPreguntas() {
     id: i+1, tema: row[0], tema_nombre: row[1],
     concepto_id: row[2], concepto: row[3], enunciado: row[4],
     opciones: { a: row[5], b: row[6], c: row[7], d: row[8] },
-    respuesta_correcta: (row[9]||'').toString().toUpperCase().trim()
+    respuesta_correcta: (row[9]||'').toString().toUpperCase().trim(),
+    fuente: (row[10]||'PROPIA').toString().trim().toUpperCase()
   }));
   return todasLasPreguntas;
 }
@@ -677,6 +680,20 @@ async function initTemasGrid() {
       div.textContent = t + ' · ' + nombre;
       div.onclick = () => { div.classList.toggle('selected'); actualizarMsgPriorizacion(); };
       grid.appendChild(div);
+    });
+
+    // Poblar selector de fuentes
+    const fuentes = [...new Set(preguntas.map(p => p.fuente))].sort();
+    const fuentesGrid = document.getElementById('fuentes-grid');
+    fuentesGrid.innerHTML = '';
+    const fuenteLabels = { PROPIA: '⭐ Mis preguntas', UV: '🔵 Univ. Valencia', UCM: '🟢 Univ. Complutense' };
+    fuentes.forEach(f => {
+      const div = document.createElement('div');
+      div.className = 'tema-check selected'; // seleccionadas por defecto
+      div.dataset.fuente = f;
+      div.textContent = fuenteLabels[f] || f;
+      div.onclick = () => div.classList.toggle('selected');
+      fuentesGrid.appendChild(div);
     });
   } catch(e) {}
 }
@@ -802,8 +819,11 @@ async function generarExamen() {
 
   try {
     const preguntas = await cargarPreguntas();
-    const filtradas = preguntas.filter(p => temasSeleccionados.includes(p.tema));
-    if (filtradas.length === 0) { alert('No hay preguntas para los temas seleccionados.'); return; }
+    const fuentesSeleccionadas = [...document.querySelectorAll('#fuentes-grid .tema-check.selected')].map(el => el.dataset.fuente);
+    if (fuentesSeleccionadas.length === 0) { alert('Selecciona al menos una fuente de preguntas.'); return; }
+
+    const filtradas = preguntas.filter(p => temasSeleccionados.includes(p.tema) && fuentesSeleccionadas.includes(p.fuente));
+    if (filtradas.length === 0) { alert('No hay preguntas para los temas y fuentes seleccionados.'); return; }
 
     // Calcular priorización
     btn.textContent = 'Calculando priorización...';
