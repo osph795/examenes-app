@@ -746,7 +746,16 @@ function seleccionarAsignaturaAlumno(idx) {
   const asignaturas = window._asignaturasPublicas || [];
   const a = asignaturas[idx];
   if (!a) return;
-  asignaturaActual = { ...a, fromUrl: true }; // fromUrl=true evita que requiera localStorage
+  // Resetear TODO el estado del alumno previo al cambiar de asignatura
+  asignaturaActual = { ...a, fromUrl: true };
+  alumnoVerificado = null;
+  pinVerificado = false;
+  todasLasPreguntas = [];
+  alumnosActuales = [];
+  examenActual = null;
+  respuestasAlumna = {};
+  examenCodigo = null;
+  datosMetricasAlumno = null;
   irA('screen-alumno-pin');
 }
 
@@ -1031,8 +1040,17 @@ async function guardarAlumno() {
 // ═══════════════════════════════════════════════════════
 // PREGUNTAS Y TEMAS
 // ═══════════════════════════════════════════════════════
+const _cachePreguntasPorAsig = {}; // clave: scriptUrl, valor: array preguntas
+
 async function cargarPreguntas() {
-  if (todasLasPreguntas.length > 0) return todasLasPreguntas;
+  const key = asignaturaActual ? asignaturaActual.scriptUrl : '';
+  // Si ya tenemos cache de ESTA asignatura, usarla
+  if (_cachePreguntasPorAsig[key] && _cachePreguntasPorAsig[key].length > 0) {
+    todasLasPreguntas = _cachePreguntasPorAsig[key];
+    return todasLasPreguntas;
+  }
+  // Si no, vaciar la global y recargar de la API
+  todasLasPreguntas = [];
   const data = await api({ action: 'getPreguntas' });
   todasLasPreguntas = data.slice(1).map((row, i) => ({
     id: i+1, tema: row[0], tema_nombre: row[1],
@@ -1041,6 +1059,7 @@ async function cargarPreguntas() {
     respuesta_correcta: (row[9]||'').toString().toUpperCase().trim(),
     fuente: (row[10]||'PROPIA').toString().trim().toUpperCase()
   }));
+  _cachePreguntasPorAsig[key] = todasLasPreguntas;
   return todasLasPreguntas;
 }
 
@@ -1307,6 +1326,13 @@ async function verificarPin() {
 function salirAlumno() {
   pinVerificado = false;
   alumnoVerificado = null;
+  asignaturaActual = null;
+  todasLasPreguntas = [];
+  alumnosActuales = [];
+  examenActual = null;
+  respuestasAlumna = {};
+  examenCodigo = null;
+  datosMetricasAlumno = null;
   irA('screen-inicio');
 }
 
