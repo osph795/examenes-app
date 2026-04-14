@@ -296,12 +296,24 @@
   </div>
   <div class="inner">
     <div class="card">
-      <h2>Añadir alumno</h2>
+      <h2 id="alumno-form-titulo">Añadir alumno</h2>
       <label>Nombre completo</label>
       <input type="text" id="alumno-nombre-input" placeholder="Ej: María García López">
       <label>PIN de acceso (4 dígitos)</label>
       <input type="text" id="alumno-pin-input" placeholder="Ej: 1234" maxlength="4" pattern="[0-9]{4}">
-      <button class="btn btn-primary btn-full" onclick="crearAlumno()">Añadir alumno</button>
+      <label>Modo</label>
+      <select id="alumno-modo-input" onchange="onCambioModoAlumno()">
+        <option value="supervisado">Supervisado (solo hace exámenes que le envíe el profesor)</option>
+        <option value="autonomo">Autónomo (puede generarse sus propios exámenes)</option>
+      </select>
+      <div id="alumno-fuentes-wrap" style="display:none;">
+        <label>Fuentes permitidas al alumno <span style="color:#888;font-weight:400;font-size:12px;">(vacío = todas)</span></label>
+        <div id="alumno-fuentes-grid-profesor" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;"></div>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-primary btn-full" id="alumno-btn-guardar" onclick="guardarAlumno()">Añadir alumno</button>
+        <button class="btn btn-secondary btn-sm" id="alumno-btn-cancelar" onclick="cancelarEdicionAlumno()" style="display:none;">Cancelar</button>
+      </div>
     </div>
     <div class="card">
       <h2>Alumnos registrados</h2>
@@ -458,11 +470,70 @@
   </div>
 </div>
 
+<!-- ══ ALUMNO: MENÚ (tras verificar PIN) ══ -->
+<div id="screen-alumno-menu" class="screen">
+  <div class="header">
+    <div style="display:flex;align-items:center;gap:10px;">
+      <button class="btn btn-secondary btn-sm" onclick="salirAlumno()">← Salir</button>
+      <h1 id="alumno-menu-nombre">Hola</h1>
+    </div>
+    <span class="badge badge-alumno">Alumno</span>
+  </div>
+  <div class="inner" style="max-width:480px;">
+    <div class="card">
+      <h2>¿Qué quieres hacer?</h2>
+      <div class="grid-2" id="alumno-menu-opciones" style="margin-top:8px;"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ ALUMNO: GENERAR EXAMEN PROPIO ══ -->
+<div id="screen-alumno-generar" class="screen">
+  <div class="header">
+    <div style="display:flex;align-items:center;gap:10px;">
+      <button class="btn btn-secondary btn-sm" onclick="irA('screen-alumno-menu')">← Volver</button>
+      <h1>Crear mi examen</h1>
+    </div>
+    <span class="badge badge-alumno">Alumno</span>
+  </div>
+  <div class="inner">
+    <div class="card">
+      <h2>Configuración</h2>
+      <label>Temas a incluir</label>
+      <div class="temas-grid" id="alumno-temas-grid"></div>
+      <label>Fuente de preguntas</label>
+      <div id="alumno-fuentes-grid" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;"></div>
+      <label>Número de preguntas</label>
+      <input type="number" id="alumno-num-preguntas" value="30" min="5" max="200">
+      <div class="msg msg-info" id="alumno-msg-priorizacion" style="display:none;"></div>
+      <button class="btn btn-primary btn-full" id="alumno-btn-generar" onclick="generarExamenAlumno()">Empezar examen</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ ALUMNO: HISTORIAL DE EXÁMENES ══ -->
+<div id="screen-alumno-historial" class="screen">
+  <div class="header">
+    <div style="display:flex;align-items:center;gap:10px;">
+      <button class="btn btn-secondary btn-sm" onclick="irA('screen-alumno-menu')">← Volver</button>
+      <h1>Mis exámenes</h1>
+    </div>
+    <span class="badge badge-alumno">Alumno</span>
+  </div>
+  <div class="inner">
+    <div class="card">
+      <h2>Exámenes completados</h2>
+      <div id="alumno-lista-examenes"></div>
+    </div>
+    <div id="alumno-detalle-examen-wrap"></div>
+  </div>
+</div>
+
 <!-- ══ ALUMNO: CÓDIGO ══ -->
 <div id="screen-alumno-codigo" class="screen">
   <div class="header">
     <div style="display:flex;align-items:center;gap:10px;">
-      <button class="btn btn-secondary btn-sm" onclick="irA('screen-inicio')">← Volver</button>
+      <button class="btn btn-secondary btn-sm" onclick="volverDeCodigoAlumno()">← Volver</button>
       <h1>Acceder al examen</h1>
     </div>
     <span class="badge badge-alumno">Alumno</span>
@@ -636,14 +707,28 @@ function renderizarAlumnos() {
     container.innerHTML = '<p style="font-size:13px;color:#888;">No hay alumnos registrados.</p>';
     return;
   }
-  container.innerHTML = alumnosActuales.map(a => `
+  container.innerHTML = alumnosActuales.map(a => {
+    const modo = (a.modo || 'supervisado').toLowerCase();
+    const fuentes = (a.fuentes_permitidas || '').trim();
+    const badgeModo = modo === 'autonomo'
+      ? '<span class="badge" style="background:#fff3e0;color:#e65100;">Autónomo</span>'
+      : '<span class="badge badge-alumno">Supervisado</span>';
+    const fuentesLbl = modo === 'autonomo'
+      ? `<div class="list-item-sub">Fuentes: ${fuentes || 'todas'}</div>`
+      : '';
+    return `
     <div class="list-item" style="cursor:default;">
       <div>
         <div class="list-item-title">${a.nombre}</div>
         <div class="list-item-sub">ID: ${a.alumno_id} · PIN: ${a.pin || '—'}</div>
+        ${fuentesLbl}
       </div>
-      <span class="badge badge-alumno">Activo</span>
-    </div>`).join('');
+      <div class="list-item-right">
+        ${badgeModo}
+        <button class="btn btn-secondary btn-sm" onclick="editarAlumno('${a.alumno_id}')">Editar</button>
+      </div>
+    </div>`;
+  }).join('');
 }
 
 function actualizarSelectAlumnos() {
@@ -658,19 +743,117 @@ function actualizarSelectAlumnos() {
   });
 }
 
-async function crearAlumno() {
+// Estado de edición de alumnos
+let alumnoEditando = null; // alumno_id en edición, null = crear nuevo
+
+function renderizarFuentesProfesor(fuentesPermitidas) {
+  // Pinta el selector de fuentes en el formulario del profesor
+  const grid = document.getElementById('alumno-fuentes-grid-profesor');
+  if (!grid) return;
+  const preguntas = todasLasPreguntas || [];
+  const todasFuentes = [...new Set(preguntas.map(p => p.fuente))].sort();
+  const seleccionadas = new Set((fuentesPermitidas || '').split(',').map(s => s.trim()).filter(Boolean));
+  const fuenteLabels = { PROPIA: '⭐ Mis preguntas', UV: '🔵 Univ. Valencia', UCM: '🟢 Univ. Complutense' };
+  grid.innerHTML = '';
+  todasFuentes.forEach(f => {
+    const div = document.createElement('div');
+    div.className = 'tema-check' + (seleccionadas.has(f) ? ' selected' : '');
+    div.dataset.fuente = f;
+    div.textContent = fuenteLabels[f] || f;
+    div.onclick = () => div.classList.toggle('selected');
+    grid.appendChild(div);
+  });
+}
+
+function onCambioModoAlumno() {
+  const modo = document.getElementById('alumno-modo-input').value;
+  const wrap = document.getElementById('alumno-fuentes-wrap');
+  if (modo === 'autonomo') {
+    wrap.style.display = 'block';
+    // Cargar preguntas si aún no están para conocer las fuentes
+    if (!todasLasPreguntas.length) {
+      cargarPreguntas().then(() => renderizarFuentesProfesor(''));
+    } else {
+      renderizarFuentesProfesor('');
+    }
+  } else {
+    wrap.style.display = 'none';
+  }
+}
+
+function prepararCrearAlumno() {
+  alumnoEditando = null;
+  document.getElementById('alumno-form-titulo').textContent = 'Añadir alumno';
+  document.getElementById('alumno-nombre-input').value = '';
+  document.getElementById('alumno-pin-input').value = '';
+  document.getElementById('alumno-modo-input').value = 'supervisado';
+  document.getElementById('alumno-fuentes-wrap').style.display = 'none';
+  document.getElementById('alumno-btn-guardar').textContent = 'Añadir alumno';
+  document.getElementById('alumno-btn-cancelar').style.display = 'none';
+}
+
+function editarAlumno(alumnoId) {
+  const a = alumnosActuales.find(x => x.alumno_id === alumnoId);
+  if (!a) return;
+  alumnoEditando = alumnoId;
+  document.getElementById('alumno-form-titulo').textContent = 'Editar: ' + a.nombre;
+  document.getElementById('alumno-nombre-input').value = a.nombre || '';
+  document.getElementById('alumno-pin-input').value = a.pin || '';
+  const modo = (a.modo || 'supervisado').toLowerCase();
+  document.getElementById('alumno-modo-input').value = modo;
+  document.getElementById('alumno-btn-guardar').textContent = 'Guardar cambios';
+  document.getElementById('alumno-btn-cancelar').style.display = 'inline-flex';
+  if (modo === 'autonomo') {
+    document.getElementById('alumno-fuentes-wrap').style.display = 'block';
+    if (!todasLasPreguntas.length) {
+      cargarPreguntas().then(() => renderizarFuentesProfesor(a.fuentes_permitidas || ''));
+    } else {
+      renderizarFuentesProfesor(a.fuentes_permitidas || '');
+    }
+  } else {
+    document.getElementById('alumno-fuentes-wrap').style.display = 'none';
+  }
+  document.getElementById('alumno-nombre-input').scrollIntoView({behavior:'smooth', block:'center'});
+}
+
+function cancelarEdicionAlumno() {
+  prepararCrearAlumno();
+}
+
+async function guardarAlumno() {
   const nombre = document.getElementById('alumno-nombre-input').value.trim();
   const pin = document.getElementById('alumno-pin-input').value.trim();
+  const modo = document.getElementById('alumno-modo-input').value;
   if (!nombre) { alert('Introduce el nombre del alumno.'); return; }
   if (!pin || !/^\d{4}$/.test(pin)) { alert('Introduce un PIN de 4 dígitos numéricos.'); return; }
-  const alumnoId = 'AL-' + Date.now().toString(36).toUpperCase();
+
+  let fuentes_permitidas = '';
+  if (modo === 'autonomo') {
+    const seleccionadas = [...document.querySelectorAll('#alumno-fuentes-grid-profesor .tema-check.selected')].map(el => el.dataset.fuente);
+    fuentes_permitidas = seleccionadas.join(',');
+  }
+
   try {
-    await api({ action: 'crearAlumno', alumno_id: alumnoId, nombre, pin, fecha: new Date().toISOString() });
-    document.getElementById('alumno-nombre-input').value = '';
-    document.getElementById('alumno-pin-input').value = '';
+    if (alumnoEditando) {
+      await api({
+        action: 'actualizarAlumno',
+        alumno_id: alumnoEditando,
+        nombre, pin, modo, fuentes_permitidas
+      });
+      alert('Alumno actualizado.');
+    } else {
+      const alumnoId = 'AL-' + Date.now().toString(36).toUpperCase();
+      await api({
+        action: 'crearAlumno',
+        alumno_id: alumnoId, nombre, pin,
+        fecha: new Date().toISOString(),
+        modo, fuentes_permitidas
+      });
+      alert('Alumno "' + nombre + '" creado con PIN ' + pin + '.');
+    }
+    prepararCrearAlumno();
     await cargarAlumnosAsignatura();
-    alert('Alumno "' + nombre + '" creado con PIN ' + pin + '.');
-  } catch(e) { alert('Error al crear el alumno.'); }
+  } catch(e) { alert('Error al guardar el alumno.'); }
 }
 
 // ═══════════════════════════════════════════════════════
@@ -934,17 +1117,70 @@ async function verificarPin() {
     alumnoVerificado = alumno;
     document.getElementById('pin-error').style.display = 'none';
     document.getElementById('pin-input').value = '';
+
     // Si viene por enlace directo con código pendiente, lanzar examen directamente
     if (pendingExamenCodigo) {
       await iniciarExamen(pendingExamenCodigo);
       pendingExamenCodigo = null;
-    } else {
-      irA('screen-alumno-codigo');
+      return;
     }
+
+    // Ruteo según modo del alumno
+    mostrarMenuAlumno();
   } catch(e) {
     alert('Error al verificar el PIN. Inténtalo de nuevo.');
     irA('screen-alumno-pin');
   }
+}
+
+function salirAlumno() {
+  pinVerificado = false;
+  alumnoVerificado = null;
+  irA('screen-inicio');
+}
+
+function volverDeCodigoAlumno() {
+  // Si hay alumno verificado con menú, vuelve al menú; si no, al inicio
+  if (alumnoVerificado) {
+    irA('screen-alumno-menu');
+  } else {
+    irA('screen-inicio');
+  }
+}
+
+function mostrarMenuAlumno() {
+  const a = alumnoVerificado;
+  const modo = (a.modo || 'supervisado').toLowerCase();
+  const esAutonomo = modo === 'autonomo';
+
+  document.getElementById('alumno-menu-nombre').textContent = 'Hola, ' + (a.nombre || '').split(' ')[0];
+
+  const opciones = document.getElementById('alumno-menu-opciones');
+  let html = '';
+
+  if (esAutonomo) {
+    html += `<div class="sel-card" onclick="irA('screen-alumno-generar')">
+      <div class="icon">✨</div>
+      <h3>Crear mi examen</h3>
+      <p>Elige temas y empieza</p>
+    </div>`;
+  }
+
+  html += `<div class="sel-card" onclick="irA('screen-alumno-codigo')">
+    <div class="icon">🔑</div>
+    <h3>Introducir código</h3>
+    <p>Examen del profesor</p>
+  </div>`;
+
+  html += `<div class="sel-card" onclick="abrirHistorialAlumno()">
+    <div class="icon">📖</div>
+    <h3>Mis exámenes</h3>
+    <p>Revisar corregidos</p>
+  </div>`;
+
+  opciones.innerHTML = html;
+
+  irA('screen-alumno-menu');
 }
 
 // ═══════════════════════════════════════════════════════
@@ -1132,9 +1368,306 @@ function mostrarResultados(correctas, total) {
         }).join('')}
       </div></div>`;
   });
-  html+=`</div><button class="btn btn-primary btn-full" onclick="irA('screen-inicio')" style="margin-bottom:32px;">Volver al inicio</button>`;
+  html+=`</div><button class="btn btn-primary btn-full" onclick="volverTrasResultados()" style="margin-bottom:32px;">Volver</button>`;
   document.getElementById('resultados-container').innerHTML = html;
   irA('screen-resultados');
+}
+
+function volverTrasResultados() {
+  // Si hay alumno verificado con menú activo, volver al menú; si no, al inicio
+  if (alumnoVerificado) {
+    irA('screen-alumno-menu');
+  } else {
+    irA('screen-inicio');
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// VISTA AUTÓNOMA DEL ALUMNO: GENERAR EXAMEN
+// ═══════════════════════════════════════════════════════
+async function initAlumnoTemasGrid() {
+  try {
+    const preguntas = await cargarPreguntas();
+    const a = alumnoVerificado;
+    const fuentesPermitidas = (a.fuentes_permitidas || '').split(',').map(s => s.trim()).filter(Boolean);
+
+    // Filtrar preguntas por fuentes permitidas (si las hay)
+    const pregsVisibles = fuentesPermitidas.length > 0
+      ? preguntas.filter(p => fuentesPermitidas.includes(p.fuente))
+      : preguntas;
+
+    // TEMAS disponibles en las preguntas visibles
+    const temas = [...new Set(pregsVisibles.map(p => p.tema))].sort((a,b) => {
+      return parseInt(a.replace('T','')) - parseInt(b.replace('T',''));
+    });
+    const grid = document.getElementById('alumno-temas-grid');
+    grid.innerHTML = '';
+    temas.forEach(t => {
+      const nombre = pregsVisibles.find(p => p.tema === t)?.tema_nombre || t;
+      const div = document.createElement('div');
+      div.className = 'tema-check';
+      div.dataset.tema = t;
+      div.textContent = t + ' · ' + nombre;
+      div.onclick = () => { div.classList.toggle('selected'); actualizarMsgPriorizacionAlumno(); };
+      grid.appendChild(div);
+    });
+
+    // FUENTES: solo las permitidas al alumno (o todas si no hay restricción)
+    const fuentesTotal = [...new Set(pregsVisibles.map(p => p.fuente))].sort();
+    const fuenteLabels = { PROPIA: '⭐ Mis preguntas', UV: '🔵 Univ. Valencia', UCM: '🟢 Univ. Complutense' };
+    const fg = document.getElementById('alumno-fuentes-grid');
+    fg.innerHTML = '';
+    fuentesTotal.forEach(f => {
+      const div = document.createElement('div');
+      div.className = 'tema-check selected';
+      div.dataset.fuente = f;
+      div.textContent = fuenteLabels[f] || f;
+      div.onclick = () => div.classList.toggle('selected');
+      fg.appendChild(div);
+    });
+  } catch(e) {}
+}
+
+async function actualizarMsgPriorizacionAlumno() {
+  const a = alumnoVerificado;
+  if (!a) return;
+  const temas = [...document.querySelectorAll('#alumno-temas-grid .tema-check.selected')].map(el => el.dataset.tema);
+  const msg = document.getElementById('alumno-msg-priorizacion');
+  if (temas.length === 0) { msg.style.display = 'none'; return; }
+
+  try {
+    const examenes = await api({ action: 'getExamenesAlumno', alumno_id: a.alumno_id });
+    if (!Array.isArray(examenes)) { msg.style.display = 'none'; return; }
+    const completados = examenes.filter(e => e.completado === 'SI').length;
+    if (completados >= 2) {
+      msg.className = 'msg msg-info';
+      msg.style.display = 'block';
+      msg.textContent = '⚡ Priorización activa: se reforzarán conceptos con ratio < 60%. Exámenes completados: ' + completados + '.';
+    } else {
+      msg.className = 'msg msg-warn';
+      msg.style.display = 'block';
+      msg.textContent = '⏳ La priorización se activará a partir del 3er examen. Exámenes completados: ' + completados + '.';
+    }
+  } catch(e) { msg.style.display = 'none'; }
+}
+
+async function generarExamenAlumno() {
+  const a = alumnoVerificado;
+  if (!a) { alert('Sesión no válida.'); irA('screen-alumno-pin'); return; }
+
+  const numPreguntas = parseInt(document.getElementById('alumno-num-preguntas').value);
+  const temasSeleccionados = [...document.querySelectorAll('#alumno-temas-grid .tema-check.selected')].map(el => el.dataset.tema);
+  const fuentesSeleccionadas = [...document.querySelectorAll('#alumno-fuentes-grid .tema-check.selected')].map(el => el.dataset.fuente);
+
+  if (temasSeleccionados.length === 0) { alert('Selecciona al menos un tema.'); return; }
+  if (fuentesSeleccionadas.length === 0) { alert('Selecciona al menos una fuente.'); return; }
+  if (!numPreguntas || numPreguntas < 1) { alert('Introduce un número válido de preguntas.'); return; }
+
+  const btn = document.getElementById('alumno-btn-generar');
+  btn.disabled = true; btn.textContent = 'Preparando examen...';
+
+  try {
+    const preguntas = await cargarPreguntas();
+
+    // Doble filtro: fuentes permitidas al alumno + fuentes seleccionadas ahora
+    const permitidas = (a.fuentes_permitidas || '').split(',').map(s => s.trim()).filter(Boolean);
+    const fuentesFinales = permitidas.length > 0
+      ? fuentesSeleccionadas.filter(f => permitidas.includes(f))
+      : fuentesSeleccionadas;
+
+    const filtradas = preguntas.filter(p => temasSeleccionados.includes(p.tema) && fuentesFinales.includes(p.fuente));
+    if (filtradas.length === 0) { alert('No hay preguntas para los temas y fuentes seleccionados.'); return; }
+
+    // Priorización (igual que profesor)
+    btn.textContent = 'Calculando priorización...';
+    const pesos = await calcularPriorizacion(a.alumno_id, temasSeleccionados);
+    const seleccionadas = aplicarPriorizacion(filtradas, pesos, Math.min(numPreguntas, filtradas.length));
+
+    const codigo = generarCodigo();
+    const fecha = new Date().toISOString();
+
+    btn.textContent = 'Guardando examen...';
+    await api({ action: 'guardarExamen', codigo, fecha, alumno_id: a.alumno_id, alumna: a.nombre, temas: temasSeleccionados.join(','), num_preguntas: seleccionadas.length });
+
+    const bloques = [];
+    for (let i = 0; i < seleccionadas.length; i += BLOQUE_SIZE) bloques.push(seleccionadas.slice(i, i + BLOQUE_SIZE));
+
+    for (let b = 0; b < bloques.length; b++) {
+      btn.textContent = 'Guardando bloque ' + (b+1) + '/' + bloques.length + '...';
+      const bloque = bloques[b].map(p => ({ id: p.id, tema: p.tema, tema_nombre: p.tema_nombre, concepto: p.concepto, enunciado: p.enunciado, opciones: p.opciones, respuesta_correcta: p.respuesta_correcta }));
+      const url = asignaturaActual.scriptUrl + '?action=guardarPreguntas&codigo=' + codigo + '&preguntas=' + encodeURIComponent(JSON.stringify(bloque));
+      await fetch(url);
+      await esperar(300);
+    }
+
+    // Arrancar examen directamente
+    btn.textContent = 'Empezar examen';
+    btn.disabled = false;
+    await iniciarExamen(codigo);
+  } catch(e) {
+    alert('Error al generar el examen. Comprueba la conexión.');
+    console.error(e);
+    btn.disabled = false; btn.textContent = 'Empezar examen';
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// VISTA ALUMNO: HISTORIAL DE EXÁMENES CORREGIDOS
+// ═══════════════════════════════════════════════════════
+let datosHistorialAlumno = null;
+
+async function abrirHistorialAlumno() {
+  const a = alumnoVerificado;
+  if (!a) return;
+  irA('screen-loading');
+  document.getElementById('loading-text').textContent = 'Cargando tus exámenes...';
+
+  try {
+    const [respuestas, examenes] = await Promise.all([
+      api({ action: 'getRespuestasAlumno', alumno_id: a.alumno_id }),
+      api({ action: 'getExamenesAlumno', alumno_id: a.alumno_id })
+    ]);
+    datosHistorialAlumno = {
+      respuestas: Array.isArray(respuestas) ? respuestas : [],
+      examenes: Array.isArray(examenes) ? examenes : []
+    };
+    renderizarHistorialAlumno();
+    irA('screen-alumno-historial');
+  } catch(e) {
+    alert('Error al cargar los exámenes.');
+    irA('screen-alumno-menu');
+  }
+}
+
+function renderizarHistorialAlumno() {
+  const { respuestas, examenes } = datosHistorialAlumno;
+  const examenesCompletados = examenes.filter(e => e.completado === 'SI')
+    .sort((a,b) => new Date(a.fecha) - new Date(b.fecha));
+
+  const porExamen = {};
+  respuestas.forEach(r => {
+    if (!porExamen[r.examen_id]) porExamen[r.examen_id] = [];
+    porExamen[r.examen_id].push(r);
+  });
+
+  const notasPorExamen = examenesCompletados.map(e => {
+    const rs = porExamen[e.examen_id] || [];
+    const correctas = rs.filter(r => r.es_correcta === 'SI').length;
+    return { ...e, correctas, total: rs.length, nota: rs.length > 0 ? (correctas/rs.length*10) : 0 };
+  });
+
+  const container = document.getElementById('alumno-lista-examenes');
+  document.getElementById('alumno-detalle-examen-wrap').innerHTML = '';
+  if (!notasPorExamen.length) {
+    container.innerHTML = '<p style="font-size:13px;color:#888;">Aún no has completado ningún examen.</p>';
+    return;
+  }
+
+  // Más reciente arriba
+  container.innerHTML = '';
+  notasPorExamen.slice().reverse().forEach((e, revIdx) => {
+    const i = notasPorExamen.length - 1 - revIdx; // índice original
+    const color = e.nota >= 5 ? '#188038' : e.nota >= 4 ? '#f9a825' : '#d93025';
+    const fecha = new Date(e.fecha).toLocaleDateString('es-ES', {day:'2-digit',month:'2-digit',year:'numeric'});
+    const div = document.createElement('div');
+    div.className = 'list-item';
+    div.onclick = () => mostrarDetalleExamenAlumno(e, i, notasPorExamen, porExamen);
+    div.innerHTML = `
+      <div>
+        <div class="list-item-title">Examen ${i+1} · ${e.temas?.split(',').join(', ')||''}</div>
+        <div class="list-item-sub">${fecha} · ${e.total} preguntas</div>
+      </div>
+      <div style="font-size:20px;font-weight:700;color:${color};background:${color}18;padding:5px 11px;border-radius:8px;">${e.nota.toFixed(1)}</div>`;
+    container.appendChild(div);
+  });
+}
+
+async function mostrarDetalleExamenAlumno(examen, idx, todos, porExamen) {
+  const wrap = document.getElementById('alumno-detalle-examen-wrap');
+  wrap.innerHTML = '<div class="card"><p style="color:#888;font-size:13px;">Cargando revisión...</p></div>';
+  wrap.scrollIntoView({behavior:'smooth'});
+
+  const rs = porExamen[examen.examen_id] || [];
+  const color = examen.nota >= 5 ? '#188038' : examen.nota >= 4 ? '#f9a825' : '#d93025';
+  const fecha = new Date(examen.fecha).toLocaleDateString('es-ES',{day:'2-digit',month:'2-digit',year:'numeric'});
+
+  // Cargar preguntas del examen para poder mostrar enunciado + opciones
+  let examenFull = null;
+  try {
+    examenFull = await api({ action: 'getExamen', codigo: examen.examen_id });
+  } catch(e) { examenFull = null; }
+
+  // Mapear respuestas por pregunta_id
+  const respPorPreg = {};
+  rs.forEach(r => { respPorPreg[r.pregunta_id] = r; });
+
+  // Resumen + tarta
+  const sinResponder = parseInt(examen.num_preguntas || 0) - examen.total;
+  const tartaExamen = crearTarta([
+    { label: 'Correctas', value: examen.correctas, color: '#188038' },
+    { label: 'Falladas', value: examen.total - examen.correctas, color: '#d93025' },
+    { label: 'Sin responder', value: sinResponder, color: '#e0e0e0' }
+  ], 70);
+
+  const porTema = {};
+  rs.forEach(r => {
+    if (!porTema[r.tema]) porTema[r.tema] = {total:0, correctas:0};
+    porTema[r.tema].total++;
+    if (r.es_correcta === 'SI') porTema[r.tema].correctas++;
+  });
+
+  let html = `<div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+      <h2>Examen ${idx+1}</h2>
+      <div style="font-size:22px;font-weight:700;color:${color}">${examen.nota.toFixed(1)}</div>
+    </div>
+    <div style="font-size:12px;color:#888;margin-bottom:14px;">${fecha} · ${examen.temas||''} · ${examen.total} preguntas</div>
+    ${tartaExamen}
+  </div>
+  <div class="card"><h2>Por tema</h2>`;
+
+  Object.entries(porTema).sort().forEach(([tema, d]) => {
+    const pct = Math.round(d.correctas/d.total*100);
+    const c = pct >= 70 ? '#188038' : pct >= 50 ? '#f9a825' : '#d93025';
+    html += `<div style="margin-bottom:9px;">
+      <div style="display:flex;justify-content:space-between;margin-bottom:3px;">
+        <span style="font-size:12px;font-weight:600;">${tema}</span>
+        <span style="font-size:12px;font-weight:600;color:${c}">${d.correctas}/${d.total} (${pct}%)</span>
+      </div>
+      <div class="mini-bar"><div class="mini-fill" style="width:${pct}%;background:${c}"></div></div>
+    </div>`;
+  });
+  html += '</div>';
+
+  // Revisión pregunta a pregunta (si pudimos cargar el examen completo)
+  if (examenFull && examenFull.preguntas && examenFull.preguntas.length) {
+    html += '<div class="card"><h2>Revisión pregunta a pregunta</h2>';
+    examenFull.preguntas.forEach((p, i) => {
+      const r = respPorPreg[p.id];
+      const dada = r ? (r.respuesta_alumna || '').toString().toUpperCase() : '';
+      const ok = dada && dada === (p.respuesta_correcta || '').toString().toUpperCase();
+      const icono = !dada ? '⬜' : ok ? '✅' : '❌';
+      html += `<div style="margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid #f0f0f0;">
+        <div style="font-size:11px;color:#888;margin-bottom:4px;">${icono} P${i+1} · ${p.tema} · ${p.concepto}</div>
+        <div style="font-size:13px;font-weight:500;margin-bottom:9px;">${p.enunciado}</div>
+        <div style="display:flex;flex-direction:column;gap:5px;">`;
+      ['a','b','c','d'].forEach(l => {
+        let s = 'padding:7px 11px;border-radius:6px;font-size:12px;border:1px solid #e0e0e0;';
+        let pre = '';
+        const L = l.toUpperCase();
+        if (L === (p.respuesta_correcta || '').toString().toUpperCase()) { s += 'background:#e6f4ea;border-color:#188038;color:#188038;font-weight:500;'; pre = '✓ '; }
+        else if (dada && L === dada && !ok) { s += 'background:#fce8e6;border-color:#d93025;color:#d93025;'; pre = '✗ '; }
+        html += `<div style="${s}">${pre}${L}) ${p.opciones[l]}</div>`;
+      });
+      html += '</div></div>';
+    });
+    html += '</div>';
+  } else {
+    html += '<div class="card"><p style="font-size:13px;color:#888;">No se pudo cargar el detalle de las preguntas de este examen.</p></div>';
+  }
+
+  wrap.innerHTML = html;
+  wrap.scrollIntoView({behavior:'smooth'});
 }
 
 // ═══════════════════════════════════════════════════════
@@ -1607,7 +2140,13 @@ function irA(id) {
     actualizarSelectAlumnos();
   }
   if (id === 'screen-alumnos' && asignaturaActual) {
+    prepararCrearAlumno();
     cargarAlumnosAsignatura();
+    // Precargar preguntas para conocer fuentes disponibles
+    if (!todasLasPreguntas.length) cargarPreguntas();
+  }
+  if (id === 'screen-alumno-generar' && asignaturaActual) {
+    initAlumnoTemasGrid();
   }
 }
 </script>
