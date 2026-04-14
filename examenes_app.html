@@ -180,7 +180,7 @@
         <h3>Profesor</h3>
         <p>Panel de gestión</p>
       </div>
-      <div class="sel-card" onclick="irA('screen-alumno-pin')">
+      <div class="sel-card" onclick="iniciarFlujoAlumno()">
         <div class="icon">📝</div>
         <h3>Alumno</h3>
         <p>Acceder al examen</p>
@@ -222,6 +222,19 @@
       <h2>Asignaturas activas</h2>
       <div id="lista-asignaturas"></div>
       <button class="btn btn-primary btn-full" onclick="irA('screen-nueva-asignatura')" style="margin-top:8px;">+ Nueva asignatura</button>
+      <button class="btn btn-secondary btn-full" onclick="mostrarJsonPublico()" style="margin-top:8px;">Generar JSON para alumnos</button>
+    </div>
+    <div class="card" id="json-publico-wrap" style="display:none;">
+      <h2>JSON público para alumnos</h2>
+      <p style="font-size:13px;color:#555;line-height:1.5;margin-bottom:10px;">
+        Sube este contenido a tu repo como <code>asignaturas.json</code> (en la misma carpeta que <code>examenes_app.html</code>).<br>
+        Así los alumnos podrán acceder desde cualquier dispositivo sin configuración previa.
+      </p>
+      <textarea id="json-publico-textarea" readonly style="width:100%;min-height:180px;padding:10px;border:1.5px solid #ddd;border-radius:8px;font-family:monospace;font-size:12px;background:#f8f9fa;"></textarea>
+      <div style="display:flex;gap:8px;margin-top:8px;">
+        <button class="btn btn-primary btn-sm" id="btn-copiar-json" onclick="copiarJsonPublico()">Copiar al portapapeles</button>
+        <a class="btn btn-secondary btn-sm" href="https://github.com/osph795/examenes-app" target="_blank" style="text-decoration:none;">Abrir GitHub</a>
+      </div>
     </div>
   </div>
 </div>
@@ -449,11 +462,30 @@
   </div>
 </div>
 
+<!-- ══ ALUMNO: SELECCIÓN ASIGNATURA ══ -->
+<div id="screen-alumno-asignatura" class="screen">
+  <div class="header">
+    <div style="display:flex;align-items:center;gap:10px;">
+      <button class="btn btn-secondary btn-sm" onclick="irA('screen-inicio')">← Volver</button>
+      <h1>Selecciona tu asignatura</h1>
+    </div>
+    <span class="badge badge-alumno">Alumno</span>
+  </div>
+  <div class="inner" style="max-width:480px;">
+    <div class="card">
+      <h2>¿En qué asignatura quieres entrar?</h2>
+      <div id="alumno-asignaturas-lista" style="margin-top:10px;">
+        <p style="font-size:13px;color:#888;">Cargando...</p>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- ══ ALUMNO: PIN ══ -->
 <div id="screen-alumno-pin" class="screen">
   <div class="header">
     <div style="display:flex;align-items:center;gap:10px;">
-      <button class="btn btn-secondary btn-sm" onclick="irA('screen-inicio')">← Volver</button>
+      <button class="btn btn-secondary btn-sm" onclick="volverDePinAlumno()">← Volver</button>
       <h1>Verificación de acceso</h1>
     </div>
     <span class="badge badge-alumno">Alumno</span>
@@ -677,6 +709,57 @@ let alumnoMetricasActual = null;
 function esperar(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 // ═══════════════════════════════════════════════════════
+// ASIGNATURAS PÚBLICAS (accesibles por alumnos desde cualquier dispositivo)
+// Se lee de un JSON público servido junto al HTML (asignaturas.json)
+// ═══════════════════════════════════════════════════════
+async function cargarAsignaturasPublicas() {
+  try {
+    // URL absoluta al JSON, relativa a la ubicación del HTML (no a la URL actual)
+    const baseDir = BASE_URL.substring(0, BASE_URL.lastIndexOf('/') + 1);
+    const resp = await fetch(baseDir + 'asignaturas.json?v=' + Date.now());
+    if (!resp.ok) return [];
+    return await resp.json();
+  } catch(e) { return []; }
+}
+
+async function iniciarFlujoAlumno() {
+  irA('screen-alumno-asignatura');
+  const lista = document.getElementById('alumno-asignaturas-lista');
+  lista.innerHTML = '<p style="font-size:13px;color:#888;">Cargando asignaturas...</p>';
+  const asignaturas = await cargarAsignaturasPublicas();
+  if (!asignaturas.length) {
+    lista.innerHTML = '<p style="font-size:13px;color:#d93025;">No hay asignaturas disponibles. Contacta con tu profesor.</p>';
+    return;
+  }
+  lista.innerHTML = asignaturas.map((a, i) => `
+    <div class="list-item" onclick="seleccionarAsignaturaAlumno(${i})">
+      <div>
+        <div class="list-item-title">${a.nombre}</div>
+      </div>
+      <span style="font-size:18px;">→</span>
+    </div>`).join('');
+  // Guardar temporalmente para seleccionar luego
+  window._asignaturasPublicas = asignaturas;
+}
+
+function seleccionarAsignaturaAlumno(idx) {
+  const asignaturas = window._asignaturasPublicas || [];
+  const a = asignaturas[idx];
+  if (!a) return;
+  asignaturaActual = { ...a, fromUrl: true }; // fromUrl=true evita que requiera localStorage
+  irA('screen-alumno-pin');
+}
+
+function volverDePinAlumno() {
+  // Si venimos del selector público, volver allí; si no (enlace directo), al inicio
+  if (asignaturaActual && asignaturaActual.fromUrl && !pendingExamenCodigo) {
+    irA('screen-alumno-asignatura');
+  } else {
+    irA('screen-inicio');
+  }
+}
+
+// ═══════════════════════════════════════════════════════
 // ASIGNATURAS (localStorage)
 // ═══════════════════════════════════════════════════════
 function cargarAsignaturas() {
@@ -697,6 +780,30 @@ function guardarAsignatura() {
   document.getElementById('nueva-script-url').value = '';
   renderizarListaAsignaturas();
   irA('screen-asignaturas');
+  // Mostrar JSON para que el profesor lo suba al repo
+  setTimeout(() => mostrarJsonPublico(), 200);
+}
+
+function mostrarJsonPublico() {
+  const asignaturas = cargarAsignaturas();
+  // Versión pública: sin id interno (no se necesita)
+  const publico = asignaturas.map(a => ({ nombre: a.nombre, scriptUrl: a.scriptUrl }));
+  const json = JSON.stringify(publico, null, 2);
+  const wrap = document.getElementById('json-publico-wrap');
+  if (!wrap) return;
+  wrap.style.display = 'block';
+  document.getElementById('json-publico-textarea').value = json;
+  wrap.scrollIntoView({ behavior: 'smooth' });
+}
+
+function copiarJsonPublico() {
+  const ta = document.getElementById('json-publico-textarea');
+  ta.select();
+  document.execCommand('copy');
+  const btn = document.getElementById('btn-copiar-json');
+  const orig = btn.textContent;
+  btn.textContent = '✓ Copiado';
+  setTimeout(() => btn.textContent = orig, 2000);
 }
 
 function renderizarListaAsignaturas() {
@@ -1154,14 +1261,13 @@ async function verificarPin() {
   if (!pinIntroducido) { alert('Introduce tu PIN.'); return; }
 
   if (!asignaturaActual) {
+    // No debería ocurrir con el flujo nuevo, pero por compatibilidad:
     const asignaturas = cargarAsignaturas();
     if (asignaturas.length === 1) {
       asignaturaActual = asignaturas[0];
-    } else if (asignaturas.length === 0) {
-      alert('No hay asignaturas configuradas. Contacta con tu profesor.');
-      return;
     } else {
-      alert('Accede mediante el enlace que te proporcionó tu profesor.');
+      alert('No hay asignatura seleccionada. Vuelve atrás y elige una.');
+      irA('screen-alumno-asignatura');
       return;
     }
   }
