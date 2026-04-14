@@ -1,10 +1,13 @@
-[
-  {
-    "nombre": "Anatomía Patológica",
-    "scriptUrl": "https://script.google.com/macros/s/AKfycbyPHh2Oe9FE5CKlfB-p22EXmREMdGYoIGcw5lxkw6S9ohdFpBmVYO2W5WpH8zgSIz6M/exec"
-  },
-  {
-    "nombre": "Bioquímica",
-    "scriptUrl": "https://script.google.com/macros/s/AKfycbxbC2DCizn7ZnmAf-dLf8UcVBA1ShBoadHOWLwLGkadXIEJyN-9kk5zaEIDqvSd0AzEcQ/exec"
-  }
-]
+{
+  "maestroUrl": "https://script.google.com/macros/s/AKfycbzhqzGc3zoFS1M8jKqvLEQvfBdyxbP9At63x8X15Gy_eAAPRIPJ6Of1Pb87D_gfE2o04g/exec",
+  "asignaturas": [
+    {
+      "nombre": "Anatomía Patológica",
+      "scriptUrl": "https://script.google.com/macros/s/AKfycbyPHh2Oe9FE5CKlfB-p22EXmREMdGYoIGcw5lxkw6S9ohdFpBmVYO2W5WpH8zgSIz6M/exec"
+    },
+    {
+      "nombre": "Bioquímica",
+      "scriptUrl": "https://script.google.com/macros/s/AKfycbxbC2DCizn7ZnmAf-dLf8UcVBA1ShBoadHOWLwLGkadXIEJyN-9kk5zaEIDqvSd0AzEcQ/exec"
+    }
+  ]
+}
