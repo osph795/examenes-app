@@ -1736,6 +1736,35 @@ function renderizarMetricasAlumno() {
     return { ...e, correctas, total: rs.length, nota: rs.length > 0 ? (correctas/rs.length*10) : 0 };
   });
 
+  // LIMPIAR todos los contenedores antes de renderizar (para evitar restos del alumno anterior)
+  ['al-chart-notas','al-linea-global-container','al-lineas-temas-container',
+   'al-tabla-temas-wrap','al-lista-examenes-metricas','al-detalle-examen-wrap',
+   'al-tarta-conceptos','al-conceptos-flojos','al-conceptos-dominados',
+   'al-conceptos-progreso'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = '';
+  });
+  // Limpiar selectores de filtro
+  ['al-filtro-desde','al-filtro-hasta'].forEach(id => {
+    const sel = document.getElementById(id);
+    if (sel) sel.innerHTML = '<option value="">— ' + (id.endsWith('desde')?'Inicio':'Último') + ' —</option>';
+  });
+
+  // Si no hay exámenes completados, mostrar mensaje único en cada contenedor relevante y salir
+  if (!notasPorExamen.length) {
+    const msg = '<p style="font-size:13px;color:#888;">Aún no has completado ningún examen.</p>';
+    document.getElementById('al-chart-notas').innerHTML = msg;
+    document.getElementById('al-linea-global-container').innerHTML = msg;
+    document.getElementById('al-lineas-temas-container').innerHTML = msg;
+    document.getElementById('al-tabla-temas-wrap').innerHTML = msg;
+    document.getElementById('al-lista-examenes-metricas').innerHTML = msg;
+    document.getElementById('al-tarta-conceptos').innerHTML = msg;
+    document.getElementById('al-conceptos-flojos').innerHTML = msg;
+    document.getElementById('al-conceptos-dominados').innerHTML = msg;
+    document.getElementById('al-conceptos-progreso').innerHTML = msg;
+    return;
+  }
+
   renderizarGraficaAlumno(notasPorExamen, porExamen);
   renderizarTablaTemasAlumno(notasPorExamen, porExamen);
   renderizarConceptosAlumno(respuestas);
