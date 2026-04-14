@@ -511,21 +511,86 @@
   </div>
 </div>
 
-<!-- ══ ALUMNO: HISTORIAL DE EXÁMENES ══ -->
-<div id="screen-alumno-historial" class="screen">
+<!-- ══ ALUMNO: MÉTRICAS ══ -->
+<div id="screen-alumno-metricas" class="screen">
   <div class="header">
     <div style="display:flex;align-items:center;gap:10px;">
       <button class="btn btn-secondary btn-sm" onclick="irA('screen-alumno-menu')">← Volver</button>
-      <h1>Mis exámenes</h1>
+      <h1>Mis métricas</h1>
     </div>
     <span class="badge badge-alumno">Alumno</span>
   </div>
   <div class="inner">
-    <div class="card">
-      <h2>Exámenes completados</h2>
-      <div id="alumno-lista-examenes"></div>
+    <div id="alumno-metricas-content" style="display:none;">
+      <div class="tabs">
+        <div class="tab active" id="al-tab-btn-global" onclick="alumnoSwitchTab('global')">Global</div>
+        <div class="tab" id="al-tab-btn-examenes" onclick="alumnoSwitchTab('examenes')">Por examen</div>
+        <div class="tab" id="al-tab-btn-conceptos" onclick="alumnoSwitchTab('conceptos')">Conceptos</div>
+      </div>
+
+      <!-- GLOBAL -->
+      <div id="al-tab-global">
+        <div class="card">
+          <h2>Evolución de la nota</h2>
+          <div class="chart-wrap"><div class="chart" id="al-chart-notas"></div></div>
+        </div>
+        <div class="card">
+          <h2>Línea de evolución global</h2>
+          <div id="al-linea-global-container"></div>
+        </div>
+        <div class="card">
+          <h2>Evolución por tema</h2>
+          <div id="al-lineas-temas-container"></div>
+        </div>
+        <div class="card">
+          <h2>Resultados por tema</h2>
+          <div style="overflow-x:auto;" id="al-tabla-temas-wrap"></div>
+        </div>
+      </div>
+
+      <!-- POR EXAMEN -->
+      <div id="al-tab-examenes" style="display:none;">
+        <div class="card">
+          <h2>Selecciona un examen</h2>
+          <div id="al-lista-examenes-metricas"></div>
+        </div>
+        <div id="al-detalle-examen-wrap"></div>
+      </div>
+
+      <!-- CONCEPTOS -->
+      <div id="al-tab-conceptos" style="display:none;">
+        <div class="card">
+          <h2>Distribución de conceptos</h2>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">
+            <div>
+              <label>Desde examen</label>
+              <select id="al-filtro-desde" style="margin-bottom:0;" onchange="alumnoFiltrarTarta()">
+                <option value="">— Inicio —</option>
+              </select>
+            </div>
+            <div>
+              <label>Hasta examen</label>
+              <select id="al-filtro-hasta" style="margin-bottom:0;" onchange="alumnoFiltrarTarta()">
+                <option value="">— Último —</option>
+              </select>
+            </div>
+          </div>
+          <div id="al-tarta-conceptos"></div>
+        </div>
+        <div class="card">
+          <h2>🔴 Conceptos a reforzar <span style="font-size:12px;font-weight:400;color:#888;">(ratio &lt; 60%)</span></h2>
+          <div id="al-conceptos-flojos"></div>
+        </div>
+        <div class="card">
+          <h2>🟢 Conceptos dominados <span style="font-size:12px;font-weight:400;color:#888;">(ratio &gt; 90%)</span></h2>
+          <div id="al-conceptos-dominados"></div>
+        </div>
+        <div class="card">
+          <h2>🟡 En progreso <span style="font-size:12px;font-weight:400;color:#888;">(60–90%)</span></h2>
+          <div id="al-conceptos-progreso"></div>
+        </div>
+      </div>
     </div>
-    <div id="alumno-detalle-examen-wrap"></div>
   </div>
 </div>
 
@@ -1172,10 +1237,10 @@ function mostrarMenuAlumno() {
     <p>Examen del profesor</p>
   </div>`;
 
-  html += `<div class="sel-card" onclick="abrirHistorialAlumno()">
-    <div class="icon">📖</div>
-    <h3>Mis exámenes</h3>
-    <p>Revisar corregidos</p>
+  html += `<div class="sel-card" onclick="abrirMetricasAlumno()">
+    <div class="icon">📊</div>
+    <h3>Mis métricas</h3>
+    <p>Evolución y conceptos</p>
   </div>`;
 
   opciones.innerHTML = html;
@@ -1512,35 +1577,44 @@ async function generarExamenAlumno() {
 }
 
 // ═══════════════════════════════════════════════════════
-// VISTA ALUMNO: HISTORIAL DE EXÁMENES CORREGIDOS
+// VISTA ALUMNO: MÉTRICAS (global + por examen + conceptos)
 // ═══════════════════════════════════════════════════════
-let datosHistorialAlumno = null;
+let datosMetricasAlumno = null;
 
-async function abrirHistorialAlumno() {
+async function abrirMetricasAlumno() {
   const a = alumnoVerificado;
   if (!a) return;
   irA('screen-loading');
-  document.getElementById('loading-text').textContent = 'Cargando tus exámenes...';
+  document.getElementById('loading-text').textContent = 'Cargando tus métricas...';
 
   try {
     const [respuestas, examenes] = await Promise.all([
       api({ action: 'getRespuestasAlumno', alumno_id: a.alumno_id }),
       api({ action: 'getExamenesAlumno', alumno_id: a.alumno_id })
     ]);
-    datosHistorialAlumno = {
+    datosMetricasAlumno = {
       respuestas: Array.isArray(respuestas) ? respuestas : [],
       examenes: Array.isArray(examenes) ? examenes : []
     };
-    renderizarHistorialAlumno();
-    irA('screen-alumno-historial');
+    irA('screen-alumno-metricas');
+    // Mostrar contenedor y renderizar con un timeout para que el DOM esté listo
+    document.getElementById('alumno-metricas-content').style.display = 'block';
+    setTimeout(() => renderizarMetricasAlumno(), 50);
   } catch(e) {
-    alert('Error al cargar los exámenes.');
+    alert('Error al cargar las métricas.');
     irA('screen-alumno-menu');
   }
 }
 
-function renderizarHistorialAlumno() {
-  const { respuestas, examenes } = datosHistorialAlumno;
+function alumnoSwitchTab(tab) {
+  ['global','examenes','conceptos'].forEach(t => {
+    document.getElementById('al-tab-'+t).style.display = t === tab ? 'block' : 'none';
+    document.getElementById('al-tab-btn-'+t).classList.toggle('active', t === tab);
+  });
+}
+
+function renderizarMetricasAlumno() {
+  const { respuestas, examenes } = datosMetricasAlumno;
   const examenesCompletados = examenes.filter(e => e.completado === 'SI')
     .sort((a,b) => new Date(a.fecha) - new Date(b.fecha));
 
@@ -1556,19 +1630,156 @@ function renderizarHistorialAlumno() {
     return { ...e, correctas, total: rs.length, nota: rs.length > 0 ? (correctas/rs.length*10) : 0 };
   });
 
-  const container = document.getElementById('alumno-lista-examenes');
-  document.getElementById('alumno-detalle-examen-wrap').innerHTML = '';
-  if (!notasPorExamen.length) {
-    container.innerHTML = '<p style="font-size:13px;color:#888;">Aún no has completado ningún examen.</p>';
+  renderizarGraficaAlumno(notasPorExamen, porExamen);
+  renderizarTablaTemasAlumno(notasPorExamen, porExamen);
+  renderizarConceptosAlumno(respuestas);
+  renderizarListaExamenesAlumno(notasPorExamen, porExamen);
+}
+
+function renderizarGraficaAlumno(notasPorExamen, porExamen) {
+  const chart = document.getElementById('al-chart-notas');
+  chart.innerHTML = '';
+  if (!notasPorExamen.length) { chart.innerHTML = '<p style="color:#888;font-size:13px;">Aún no has completado ningún examen.</p>'; return; }
+
+  notasPorExamen.forEach((e,i) => {
+    const pct = e.nota/10*100;
+    const color = e.nota>=5?'#1a73e8':e.nota>=4?'#f9a825':'#d93025';
+    const fecha = new Date(e.fecha).toLocaleDateString('es-ES',{day:'2-digit',month:'2-digit'});
+    const div = document.createElement('div');
+    div.className = 'bar-col';
+    div.innerHTML = `<div class="bar-val" style="color:${color}">${e.nota.toFixed(1)}</div>
+      <div class="bar-rect" style="height:${pct}%;background:${color};opacity:0.85;"></div>
+      <div class="bar-lbl">${fecha}</div>`;
+    chart.appendChild(div);
+  });
+
+  document.getElementById('al-linea-global-container').innerHTML = crearLineaGlobal(notasPorExamen);
+  document.getElementById('al-lineas-temas-container').innerHTML = crearLineasPorTema(notasPorExamen, porExamen);
+}
+
+function renderizarTablaTemasAlumno(notasPorExamen, porExamen) {
+  const wrap = document.getElementById('al-tabla-temas-wrap');
+  if (!notasPorExamen.length) { wrap.innerHTML = '<p style="color:#888;font-size:13px;">Sin datos.</p>'; return; }
+  const temas = new Set();
+  Object.values(porExamen).forEach(rs => rs.forEach(r => temas.add(r.tema)));
+  const temasOrd = [...temas].sort((a,b) => parseInt(a.replace('T',''))-parseInt(b.replace('T','')));
+  let html = '<table class="tabla"><thead><tr><th>Examen</th><th>Fecha</th><th>Nota</th>';
+  temasOrd.forEach(t => html += `<th>${t}</th>`);
+  html += '</tr></thead><tbody>';
+  notasPorExamen.forEach((e,i) => {
+    const rs = porExamen[e.examen_id]||[];
+    const color = e.nota>=5?'#188038':e.nota>=4?'#f9a825':'#d93025';
+    const fecha = new Date(e.fecha).toLocaleDateString('es-ES',{day:'2-digit',month:'2-digit',year:'2-digit'});
+    html += `<tr><td style="font-weight:600;">E${i+1}</td><td>${fecha}</td><td style="font-weight:700;color:${color}">${e.nota.toFixed(1)}</td>`;
+    temasOrd.forEach(t => {
+      const rsTema = rs.filter(r => r.tema === t);
+      if (!rsTema.length) { html += '<td style="color:#ccc;">—</td>'; return; }
+      const pct = Math.round(rsTema.filter(r => r.es_correcta === 'SI').length/rsTema.length*100);
+      const c = pct>=70?'#188038':pct>=50?'#f9a825':'#d93025';
+      html += `<td style="font-weight:600;color:${c}">${pct}%</td>`;
+    });
+    html += '</tr>';
+  });
+  html += '</tbody></table>';
+  wrap.innerHTML = html;
+}
+
+function renderizarConceptosAlumno(respuestas) {
+  const { examenes } = datosMetricasAlumno;
+  const examenesCompletados = examenes
+    .filter(e => e.completado === 'SI')
+    .sort((a,b) => new Date(a.fecha) - new Date(b.fecha));
+
+  const selDesde = document.getElementById('al-filtro-desde');
+  const selHasta = document.getElementById('al-filtro-hasta');
+  if (selDesde && selHasta) {
+    selDesde.innerHTML = '<option value="">— Inicio —</option>';
+    selHasta.innerHTML = '<option value="">— Último —</option>';
+    examenesCompletados.forEach((e, i) => {
+      const fecha = new Date(e.fecha).toLocaleDateString('es-ES',{day:'2-digit',month:'2-digit',year:'2-digit'});
+      selDesde.innerHTML += `<option value="${e.examen_id}">Examen ${i+1} · ${fecha}</option>`;
+      selHasta.innerHTML += `<option value="${e.examen_id}">Examen ${i+1} · ${fecha}</option>`;
+    });
+  }
+  calcularYRenderizarConceptosAlumno(respuestas);
+}
+
+function alumnoFiltrarTarta() {
+  if (!datosMetricasAlumno) return;
+  const { respuestas, examenes } = datosMetricasAlumno;
+  const examenesCompletados = examenes
+    .filter(e => e.completado === 'SI')
+    .sort((a,b) => new Date(a.fecha) - new Date(b.fecha));
+
+  const desdeId = document.getElementById('al-filtro-desde').value;
+  const hastaId = document.getElementById('al-filtro-hasta').value;
+  const idxDesde = desdeId ? examenesCompletados.findIndex(e => e.examen_id === desdeId) : 0;
+  const idxHasta = hastaId ? examenesCompletados.findIndex(e => e.examen_id === hastaId) : examenesCompletados.length - 1;
+
+  if (idxDesde > idxHasta) {
+    alert('El examen de inicio debe ser anterior al examen final.');
     return;
   }
+  const idsRango = new Set(examenesCompletados.slice(idxDesde, idxHasta + 1).map(e => e.examen_id));
+  const respuestasFiltradas = respuestas.filter(r => idsRango.has(r.examen_id));
+  calcularYRenderizarConceptosAlumno(respuestasFiltradas);
+}
 
-  // Más reciente arriba
+function calcularYRenderizarConceptosAlumno(respuestas) {
+  const porConcepto = {};
+  respuestas.forEach(r => {
+    const key = r.tema+'|||'+r.concepto;
+    if (!porConcepto[key]) porConcepto[key] = {tema:r.tema,concepto:r.concepto,total:0,correctas:0};
+    porConcepto[key].total++;
+    if (r.es_correcta === 'SI') porConcepto[key].correctas++;
+  });
+
+  const todos = Object.values(porConcepto)
+    .filter(d => d.total >= 2)
+    .map(d => ({...d, pct: Math.round(d.correctas/d.total*100)}))
+    .sort((a,b) => a.pct - b.pct);
+
+  const flojos = todos.filter(d => d.pct < 60);
+  const dominados = todos.filter(d => d.pct > 90);
+  const progreso = todos.filter(d => d.pct >= 60 && d.pct <= 90);
+
+  const tartaData = [
+    { label: 'A reforzar (<60%)', value: flojos.length, color: '#d93025' },
+    { label: 'En progreso (60-90%)', value: progreso.length, color: '#f9a825' },
+    { label: 'Dominados (>90%)', value: dominados.length, color: '#188038' }
+  ];
+  document.getElementById('al-tarta-conceptos').innerHTML = crearTarta(tartaData, 70);
+
+  const renderGrupo = (items, container) => {
+    if (!items.length) { document.getElementById(container).innerHTML = '<p style="font-size:13px;color:#888;">Sin datos suficientes.</p>'; return; }
+    let html = '';
+    items.forEach(d => {
+      const color = d.pct>=70?'#188038':d.pct>=50?'#f9a825':'#d93025';
+      html += `<div style="margin-bottom:9px;">
+        <div style="display:flex;justify-content:space-between;margin-bottom:3px;">
+          <span style="font-size:12px;">${d.tema} · ${d.concepto}</span>
+          <span style="font-size:12px;font-weight:600;color:${color}">${d.pct}% (${d.correctas}/${d.total})</span>
+        </div>
+        <div class="mini-bar"><div class="mini-fill" style="width:${d.pct}%;background:${color}"></div></div>
+      </div>`;
+    });
+    document.getElementById(container).innerHTML = html;
+  };
+
+  renderGrupo(flojos, 'al-conceptos-flojos');
+  renderGrupo(dominados, 'al-conceptos-dominados');
+  renderGrupo(progreso, 'al-conceptos-progreso');
+}
+
+function renderizarListaExamenesAlumno(notasPorExamen, porExamen) {
+  const container = document.getElementById('al-lista-examenes-metricas');
+  if (!notasPorExamen.length) { container.innerHTML = '<p style="font-size:13px;color:#888;">Aún no has completado ningún examen.</p>'; return; }
   container.innerHTML = '';
+  // Más reciente arriba
   notasPorExamen.slice().reverse().forEach((e, revIdx) => {
-    const i = notasPorExamen.length - 1 - revIdx; // índice original
-    const color = e.nota >= 5 ? '#188038' : e.nota >= 4 ? '#f9a825' : '#d93025';
-    const fecha = new Date(e.fecha).toLocaleDateString('es-ES', {day:'2-digit',month:'2-digit',year:'numeric'});
+    const i = notasPorExamen.length - 1 - revIdx;
+    const color = e.nota>=5?'#188038':e.nota>=4?'#f9a825':'#d93025';
+    const fecha = new Date(e.fecha).toLocaleDateString('es-ES',{day:'2-digit',month:'2-digit',year:'numeric'});
     const div = document.createElement('div');
     div.className = 'list-item';
     div.onclick = () => mostrarDetalleExamenAlumno(e, i, notasPorExamen, porExamen);
@@ -1583,31 +1794,31 @@ function renderizarHistorialAlumno() {
 }
 
 async function mostrarDetalleExamenAlumno(examen, idx, todos, porExamen) {
-  const wrap = document.getElementById('alumno-detalle-examen-wrap');
+  const wrap = document.getElementById('al-detalle-examen-wrap');
   wrap.innerHTML = '<div class="card"><p style="color:#888;font-size:13px;">Cargando revisión...</p></div>';
   wrap.scrollIntoView({behavior:'smooth'});
 
   const rs = porExamen[examen.examen_id] || [];
+  const anterior = idx>0 ? todos[idx-1] : null;
+  const rsAnt = anterior ? (porExamen[anterior.examen_id]||[]) : null;
   const color = examen.nota >= 5 ? '#188038' : examen.nota >= 4 ? '#f9a825' : '#d93025';
   const fecha = new Date(examen.fecha).toLocaleDateString('es-ES',{day:'2-digit',month:'2-digit',year:'numeric'});
 
-  // Cargar preguntas del examen para poder mostrar enunciado + opciones
+  let deltaHtml = '';
+  if (anterior) {
+    const diff = (examen.nota - anterior.nota).toFixed(1);
+    const cls = diff>0?'delta-up':diff<0?'delta-down':'delta-same';
+    deltaHtml = `<span class="delta ${cls}">${diff>0?'+':''}${diff}</span>`;
+  }
+
+  // Cargar preguntas del examen para revisión pregunta a pregunta
   let examenFull = null;
   try {
     examenFull = await api({ action: 'getExamen', codigo: examen.examen_id });
   } catch(e) { examenFull = null; }
 
-  // Mapear respuestas por pregunta_id
   const respPorPreg = {};
   rs.forEach(r => { respPorPreg[r.pregunta_id] = r; });
-
-  // Resumen + tarta
-  const sinResponder = parseInt(examen.num_preguntas || 0) - examen.total;
-  const tartaExamen = crearTarta([
-    { label: 'Correctas', value: examen.correctas, color: '#188038' },
-    { label: 'Falladas', value: examen.total - examen.correctas, color: '#d93025' },
-    { label: 'Sin responder', value: sinResponder, color: '#e0e0e0' }
-  ], 70);
 
   const porTema = {};
   rs.forEach(r => {
@@ -1615,31 +1826,51 @@ async function mostrarDetalleExamenAlumno(examen, idx, todos, porExamen) {
     porTema[r.tema].total++;
     if (r.es_correcta === 'SI') porTema[r.tema].correctas++;
   });
+  const porTemaAnt = {};
+  if (rsAnt) rsAnt.forEach(r => {
+    if (!porTemaAnt[r.tema]) porTemaAnt[r.tema] = {total:0, correctas:0};
+    porTemaAnt[r.tema].total++;
+    if (r.es_correcta === 'SI') porTemaAnt[r.tema].correctas++;
+  });
+
+  const sinResponder = parseInt(examen.num_preguntas||0) - examen.total;
+  const tartaExamen = crearTarta([
+    { label: 'Correctas', value: examen.correctas, color: '#188038' },
+    { label: 'Falladas', value: examen.total - examen.correctas, color: '#d93025' },
+    { label: 'Sin responder', value: sinResponder, color: '#e0e0e0' }
+  ], 70);
 
   let html = `<div class="card">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
       <h2>Examen ${idx+1}</h2>
-      <div style="font-size:22px;font-weight:700;color:${color}">${examen.nota.toFixed(1)}</div>
+      <div style="font-size:22px;font-weight:700;color:${color}">${examen.nota.toFixed(1)} ${deltaHtml}</div>
     </div>
     <div style="font-size:12px;color:#888;margin-bottom:14px;">${fecha} · ${examen.temas||''} · ${examen.total} preguntas</div>
     ${tartaExamen}
   </div>
-  <div class="card"><h2>Por tema</h2>`;
+  <div class="card"><h2>Por tema ${anterior?'<span style="font-size:11px;color:#888;font-weight:400;">vs anterior</span>':''}</h2>`;
 
-  Object.entries(porTema).sort().forEach(([tema, d]) => {
+  Object.entries(porTema).sort().forEach(([tema,d]) => {
     const pct = Math.round(d.correctas/d.total*100);
-    const c = pct >= 70 ? '#188038' : pct >= 50 ? '#f9a825' : '#d93025';
+    const c = pct>=70?'#188038':pct>=50?'#f9a825':'#d93025';
+    let cmp = '';
+    if (porTemaAnt[tema]) {
+      const pctA = Math.round(porTemaAnt[tema].correctas/porTemaAnt[tema].total*100);
+      const diff = pct-pctA;
+      const cls = diff>0?'delta-up':diff<0?'delta-down':'delta-same';
+      cmp = `<span class="delta ${cls}">${diff>0?'+':''}${diff}%</span>`;
+    }
     html += `<div style="margin-bottom:9px;">
-      <div style="display:flex;justify-content:space-between;margin-bottom:3px;">
+      <div style="display:flex;justify-content:space-between;margin-bottom:3px;align-items:center;">
         <span style="font-size:12px;font-weight:600;">${tema}</span>
-        <span style="font-size:12px;font-weight:600;color:${c}">${d.correctas}/${d.total} (${pct}%)</span>
+        <span style="font-size:12px;font-weight:600;color:${c}">${d.correctas}/${d.total} (${pct}%) ${cmp}</span>
       </div>
       <div class="mini-bar"><div class="mini-fill" style="width:${pct}%;background:${c}"></div></div>
     </div>`;
   });
   html += '</div>';
 
-  // Revisión pregunta a pregunta (si pudimos cargar el examen completo)
+  // Revisión pregunta a pregunta
   if (examenFull && examenFull.preguntas && examenFull.preguntas.length) {
     html += '<div class="card"><h2>Revisión pregunta a pregunta</h2>';
     examenFull.preguntas.forEach((p, i) => {
@@ -1662,8 +1893,6 @@ async function mostrarDetalleExamenAlumno(examen, idx, todos, porExamen) {
       html += '</div></div>';
     });
     html += '</div>';
-  } else {
-    html += '<div class="card"><p style="font-size:13px;color:#888;">No se pudo cargar el detalle de las preguntas de este examen.</p></div>';
   }
 
   wrap.innerHTML = html;
@@ -1671,7 +1900,7 @@ async function mostrarDetalleExamenAlumno(examen, idx, todos, porExamen) {
 }
 
 // ═══════════════════════════════════════════════════════
-// MÉTRICAS
+// MÉTRICAS (profesor)
 // ═══════════════════════════════════════════════════════
 async function cargarMetricas() {
   await cargarAlumnosAsignatura();
