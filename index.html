@@ -2345,12 +2345,6 @@ async function mostrarDetalleExamenAlumno(examen, idx, todos, porExamen) {
     deltaHtml = `<span class="delta ${cls}">${diff>0?'+':''}${diff}</span>`;
   }
 
-  // Cargar preguntas del examen para revisión pregunta a pregunta
-  let examenFull = null;
-  try {
-    examenFull = await api({ action: 'getExamen', codigo: examen.examen_id });
-  } catch(e) { examenFull = null; }
-
   const respPorPreg = {};
   rs.forEach(r => { respPorPreg[r.pregunta_id] = r; });
 
