@@ -425,7 +425,7 @@
   <div class="header">
     <div style="display:flex;align-items:center;gap:10px;">
       <button class="btn btn-secondary btn-sm" onclick="irA('screen-panel-asignatura')">← Panel</button>
-      <h1>Métricas</h1>
+      <h1 id="metricas-titulo">Métricas</h1>
     </div>
     <span class="badge badge-metricas">Panel</span>
   </div>
@@ -2434,12 +2434,27 @@ async function mostrarDetalleExamenAlumno(examen, idx, todos, porExamen) {
 async function cargarMetricas() {
   await cargarAlumnosDesdeMaestroPanel();
   document.getElementById('metricas-content').style.display = 'none';
+  document.getElementById('detalle-examen-wrap').innerHTML = '';
+  document.getElementById('lista-examenes-metricas').innerHTML = '';
+  document.getElementById('metricas-titulo').textContent = 'Métricas';
+  switchMetricaTab('global');
   irA('screen-metricas');
+}
+
+function actualizarTituloMetricasProfesor(alumnoId) {
+  const alumno = (alumnosActuales || []).find(a => a.alumno_id === alumnoId);
+  document.getElementById('metricas-titulo').textContent = alumno ? ('Métricas · ' + alumno.nombre) : 'Métricas';
 }
 
 async function cambiarAlumnoMetricas() {
   const alumnoId = document.getElementById('metricas-alumno-select').value;
-  if (!alumnoId) { document.getElementById('metricas-content').style.display = 'none'; return; }
+  document.getElementById('detalle-examen-wrap').innerHTML = '';
+  document.getElementById('lista-examenes-metricas').innerHTML = '';
+  if (!alumnoId) {
+    document.getElementById('metricas-content').style.display = 'none';
+    document.getElementById('metricas-titulo').textContent = 'Métricas';
+    return;
+  }
   irA('screen-loading');
   document.getElementById('loading-text').textContent = 'Cargando métricas...';
   try {
@@ -2449,7 +2464,9 @@ async function cambiarAlumnoMetricas() {
     ]);
     alumnoMetricasActual = alumnoId;
     datosMetricas = { respuestas: Array.isArray(respuestas)?respuestas:[], examenes: Array.isArray(examenes)?examenes:[] };
+    actualizarTituloMetricasProfesor(alumnoId);
     document.getElementById('metricas-content').style.display = 'block';
+    switchMetricaTab('global');
     irA('screen-metricas');
     setTimeout(() => renderizarTodasMetricas(), 50);
   } catch(e) {
@@ -2466,11 +2483,11 @@ function switchMetricaTab(tab) {
 }
 
 function renderizarTodasMetricas() {
-  const { respuestas, examenes } = datosMetricas;
-  const examenesCompletados = examenes.filter(e=>e.completado==='SI').sort((a,b)=>new Date(a.fecha)-new Date(b.fecha));
+  const { respuestas, examenes } = datosMetricas || { respuestas: [], examenes: [] };
+  const examenesCompletados = (examenes || []).filter(e=>e.completado==='SI').sort((a,b)=>new Date(a.fecha)-new Date(b.fecha));
 
   const porExamen = {};
-  respuestas.forEach(r => {
+  (respuestas || []).forEach(r => {
     if (!porExamen[r.examen_id]) porExamen[r.examen_id] = [];
     porExamen[r.examen_id].push(r);
   });
@@ -2481,9 +2498,10 @@ function renderizarTodasMetricas() {
     return { ...e, correctas, total: rs.length, nota: rs.length>0?(correctas/rs.length*10):0 };
   });
 
+  document.getElementById('detalle-examen-wrap').innerHTML = '';
   renderizarGrafica(notasPorExamen, porExamen);
   renderizarTablaTemas(notasPorExamen, porExamen);
-  renderizarConceptos(respuestas);
+  renderizarConceptos(respuestas, examenesCompletados);
   renderizarListaExamenesMetricas(notasPorExamen, porExamen);
 }
 
@@ -2539,49 +2557,61 @@ function renderizarTablaTemas(notasPorExamen, porExamen) {
   wrap.innerHTML = html;
 }
 
-function renderizarConceptos(respuestas) {
-  // Poblar selectores con exámenes completados
-  const { examenes } = datosMetricas;
-  const examenesCompletados = examenes
-    .filter(e => e.completado === 'SI')
-    .sort((a,b) => new Date(a.fecha) - new Date(b.fecha));
+function renderizarConceptos(respuestas, examenesCompletados) {
+  const lista = Array.isArray(examenesCompletados)
+    ? examenesCompletados
+    : ((datosMetricas?.examenes || [])
+        .filter(e => e.completado === 'SI')
+        .sort((a,b) => new Date(a.fecha) - new Date(b.fecha)));
 
   const selDesde = document.getElementById('filtro-desde');
   const selHasta = document.getElementById('filtro-hasta');
   if (selDesde && selHasta) {
+    const prevDesde = selDesde.value;
+    const prevHasta = selHasta.value;
     selDesde.innerHTML = '<option value="">— Inicio —</option>';
     selHasta.innerHTML = '<option value="">— Último —</option>';
-    examenesCompletados.forEach((e, i) => {
+    lista.forEach((e, i) => {
       const fecha = new Date(e.fecha).toLocaleDateString('es-ES',{day:'2-digit',month:'2-digit',year:'2-digit'});
       selDesde.innerHTML += `<option value="${e.examen_id}">Examen ${i+1} · ${fecha}</option>`;
       selHasta.innerHTML += `<option value="${e.examen_id}">Examen ${i+1} · ${fecha}</option>`;
     });
+    if (lista.some(e => e.examen_id === prevDesde)) selDesde.value = prevDesde;
+    if (lista.some(e => e.examen_id === prevHasta)) selHasta.value = prevHasta;
   }
 
-  calcularYRenderizarConceptos(respuestas);
+  filtrarTartaConceptos();
 }
 
 function filtrarTartaConceptos() {
   if (!datosMetricas) return;
   const { respuestas, examenes } = datosMetricas;
-  const examenesCompletados = examenes
+  const examenesCompletados = (examenes || [])
     .filter(e => e.completado === 'SI')
     .sort((a,b) => new Date(a.fecha) - new Date(b.fecha));
+
+  if (!examenesCompletados.length) {
+    calcularYRenderizarConceptos([]);
+    return;
+  }
 
   const desdeId = document.getElementById('filtro-desde').value;
   const hastaId = document.getElementById('filtro-hasta').value;
 
-  const idxDesde = desdeId ? examenesCompletados.findIndex(e => e.examen_id === desdeId) : 0;
-  const idxHasta = hastaId ? examenesCompletados.findIndex(e => e.examen_id === hastaId) : examenesCompletados.length - 1;
+  let idxDesde = desdeId ? examenesCompletados.findIndex(e => e.examen_id === desdeId) : 0;
+  let idxHasta = hastaId ? examenesCompletados.findIndex(e => e.examen_id === hastaId) : examenesCompletados.length - 1;
+  if (idxDesde < 0) idxDesde = 0;
+  if (idxHasta < 0) idxHasta = examenesCompletados.length - 1;
 
   if (idxDesde > idxHasta) {
-    alert('El examen de inicio debe ser anterior al examen final.');
-    return;
+    const temp = idxDesde;
+    idxDesde = idxHasta;
+    idxHasta = temp;
   }
 
   const examenesRango = examenesCompletados.slice(idxDesde, idxHasta + 1);
   const idsRango = new Set(examenesRango.map(e => e.examen_id));
-  const respuestasFiltradas = respuestas.filter(r => idsRango.has(r.examen_id));
+  const respuestasFiltradas = (respuestas || []).filter(r => idsRango.has(r.examen_id));
 
   calcularYRenderizarConceptos(respuestasFiltradas);
 }
@@ -2635,8 +2665,14 @@ function calcularYRenderizarConceptos(respuestas) {
 
 function renderizarListaExamenesMetricas(notasPorExamen, porExamen) {
   const container = document.getElementById('lista-examenes-metricas');
-  if (!notasPorExamen.length) { container.innerHTML = '<p style="font-size:13px;color:#888;">Sin exámenes completados.</p>'; return; }
+  const detalle = document.getElementById('detalle-examen-wrap');
+  if (!notasPorExamen.length) {
+    container.innerHTML = '<p style="font-size:13px;color:#888;">Sin exámenes completados.</p>';
+    detalle.innerHTML = '';
+    return;
+  }
   container.innerHTML = '';
+  detalle.innerHTML = '';
   notasPorExamen.forEach((e,i) => {
     const color = e.nota>=5?'#188038':e.nota>=4?'#f9a825':'#d93025';
     const fecha = new Date(e.fecha).toLocaleDateString('es-ES',{day:'2-digit',month:'2-digit',year:'numeric'});
@@ -2654,11 +2690,22 @@ function renderizarListaExamenesMetricas(notasPorExamen, porExamen) {
 }
 
 async function mostrarDetalleExamen(examen, idx, todos, porExamen) {
+  const wrap = document.getElementById('detalle-examen-wrap');
+  wrap.innerHTML = '<div class="card"><p style="color:#888;font-size:13px;">Cargando revisión...</p></div>';
+  wrap.scrollIntoView({behavior:'smooth'});
+
   const rs = porExamen[examen.examen_id]||[];
   const anterior = idx>0?todos[idx-1]:null;
   const rsAnt = anterior?(porExamen[anterior.examen_id]||[]):null;
   const color = examen.nota>=5?'#188038':examen.nota>=4?'#f9a825':'#d93025';
   const fecha = new Date(examen.fecha).toLocaleDateString('es-ES',{day:'2-digit',month:'2-digit',year:'numeric'});
+
+  let examenFull = null;
+  try {
+    examenFull = await api({ action: 'getExamen', codigo: examen.examen_id });
+  } catch (e) {
+    console.warn('No se pudo cargar el examen completo para métricas del profesor', e);
+  }
 
   let deltaHtml = '';
   if (anterior) {
