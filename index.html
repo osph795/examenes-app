@@ -1039,16 +1039,28 @@ function actualizarSelectAlumnos() {
   selects.forEach(id => {
     const sel = document.getElementById(id);
     if (!sel) return;
-    sel.innerHTML = '<option value="">— Selecciona alumno —</option>';
+
+    const valorPrevio = sel.value;
     const nombreAsig = asignaturaActual ? asignaturaActual.nombre : null;
-    alumnosActuales.forEach(a => {
+    const alumnosFiltrados = alumnosActuales.filter(a => {
       const asigs = Array.isArray(a.asignaturas) ? a.asignaturas : [];
-      const tieneAcceso = !nombreAsig || asigs.some(x => x.asignatura === nombreAsig);
-      if (tieneAcceso) {
-        sel.innerHTML += `<option value="${a.alumno_id}">${a.nombre}</option>`;
-      }
+      return !nombreAsig || asigs.some(x => x.asignatura === nombreAsig);
     });
+
+    sel.innerHTML = '<option value="">— Selecciona alumno —</option>';
+    alumnosFiltrados.forEach(a => {
+      sel.innerHTML += `<option value="${a.alumno_id}">${a.nombre}</option>`;
+    });
+
+    if (valorPrevio && alumnosFiltrados.some(a => a.alumno_id === valorPrevio)) {
+      sel.value = valorPrevio;
+    }
   });
+
+  const selMetricas = document.getElementById('metricas-alumno-select');
+  if (selMetricas && selMetricas.value) {
+    actualizarTituloMetricasProfesor(selMetricas.value);
+  }
 }
 
 // ═══════════════════════════════════════════════════════
@@ -1304,21 +1316,15 @@ function obtenerExplicacionPregunta(p) {
 }
 
 function crearBloqueExplicacionPregunta(p) {
-  const corta = (p.explicacion_corta || '').toString().trim();
-  const larga = (p.explicacion_larga || '').toString().trim();
-  const estado = (p.estado_explicacion || '').toString().trim();
+  const corta = (p.explicacion_corta || p.explicacion || p.explicacionTexto || '').toString().trim();
+  const larga = (p.explicacion_larga || p.explicacionLarga || '').toString().trim();
+  const estado = (p.estado_explicacion || p.estadoExplicacion || '').toString().trim();
   if (!corta && !larga) return '';
 
-  const id = 'explicacion-' + String(p.id).replace(/[^a-zA-Z0-9_-]/g, '-') + '-' + Math.random().toString(36).slice(2,7);
   let html = '<div class="msg msg-info" style="margin-top:10px;">';
-  if (corta) {
-    html += '<strong>Explicación:</strong><br>' + corta;
-  } else if (larga) {
-    html += '<strong>Explicación:</strong><br>' + larga;
-  }
+  html += '<strong>Explicación:</strong><br>' + (corta || larga);
   if (larga && corta && larga !== corta) {
-    html += '<div style="margin-top:8px;"><button class="btn btn-secondary btn-sm" type="button" onclick="const el=document.getElementById(\'' + id + '\'); el.style.display = el.style.display === \'none\' ? \'block\' : \'none\'; this.textContent = el.style.display === \'none\' ? \'Ver más\' : \'Ver menos\';">Ver más</button></div>';
-    html += '<div id="' + id + '" style="display:none;margin-top:8px;font-size:12px;line-height:1.5;color:#444;">' + larga + '</div>';
+    html += '<div style="margin-top:8px;font-size:12px;line-height:1.5;color:#444;">' + larga + '</div>';
   }
   if (estado) {
     html += '<div style="margin-top:6px;font-size:11px;color:#888;">Estado: ' + estado + '</div>';
@@ -2443,7 +2449,14 @@ async function cargarMetricas() {
 
 function actualizarTituloMetricasProfesor(alumnoId) {
   const alumno = (alumnosActuales || []).find(a => a.alumno_id === alumnoId);
-  document.getElementById('metricas-titulo').textContent = alumno ? ('Métricas · ' + alumno.nombre) : 'Métricas';
+  let nombre = alumno ? alumno.nombre : '';
+  if (!nombre) {
+    const sel = document.getElementById('metricas-alumno-select');
+    if (sel && sel.value === alumnoId && sel.selectedIndex >= 0) {
+      nombre = (sel.options[sel.selectedIndex]?.textContent || '').trim();
+    }
+  }
+  document.getElementById('metricas-titulo').textContent = nombre ? ('Métricas · ' + nombre) : 'Métricas';
 }
 
 async function cambiarAlumnoMetricas() {
@@ -2691,6 +2704,7 @@ function renderizarListaExamenesMetricas(notasPorExamen, porExamen) {
 
 async function mostrarDetalleExamen(examen, idx, todos, porExamen) {
   const wrap = document.getElementById('detalle-examen-wrap');
+  actualizarTituloMetricasProfesor(alumnoMetricasActual || (document.getElementById('metricas-alumno-select') || {}).value || '');
   wrap.innerHTML = '<div class="card"><p style="color:#888;font-size:13px;">Cargando revisión...</p></div>';
   wrap.scrollIntoView({behavior:'smooth'});
 
@@ -2983,7 +2997,10 @@ function irA(id) {
     cargarAlumnosDesdeMaestroPanel();
   }
   if (id === 'screen-metricas' && asignaturaActual) {
-    cargarAlumnosDesdeMaestroPanel();
+    const sel = document.getElementById('metricas-alumno-select');
+    if (!sel || !sel.options.length || sel.options.length <= 1) {
+      cargarAlumnosDesdeMaestroPanel();
+    }
   }
   if (id === 'screen-alumno-generar' && asignaturaActual) {
     initAlumnoTemasGrid();
