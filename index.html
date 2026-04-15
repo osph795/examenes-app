@@ -2463,6 +2463,10 @@ async function cambiarAlumnoMetricas() {
   const alumnoId = document.getElementById('metricas-alumno-select').value;
   document.getElementById('detalle-examen-wrap').innerHTML = '';
   document.getElementById('lista-examenes-metricas').innerHTML = '';
+  const fd = document.getElementById('filtro-desde');
+  const fh = document.getElementById('filtro-hasta');
+  if (fd) fd.value = '';
+  if (fh) fh.value = '';
   if (!alumnoId) {
     document.getElementById('metricas-content').style.display = 'none';
     document.getElementById('metricas-titulo').textContent = 'Métricas';
@@ -2493,6 +2497,9 @@ function switchMetricaTab(tab) {
     document.getElementById('tab-'+t).style.display = t===tab?'block':'none';
     document.getElementById('tab-btn-'+t).classList.toggle('active', t===tab);
   });
+  if (tab === 'conceptos') {
+    setTimeout(() => filtrarTartaConceptos(), 0);
+  }
 }
 
 function renderizarTodasMetricas() {
@@ -2639,7 +2646,7 @@ function calcularYRenderizarConceptos(respuestas) {
   });
 
   const todos = Object.values(porConcepto)
-    .filter(d=>d.total>=2)
+    .filter(d=>d.total>=1)
     .map(d=>({...d,pct:Math.round(d.correctas/d.total*100)}))
     .sort((a,b)=>a.pct-b.pct);
 
