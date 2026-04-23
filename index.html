@@ -786,6 +786,31 @@ async function cargarAsignaturasPublicas() {
   }
 }
 
+
+async function cargarConfigProfesorPublica() {
+  // Permite que el panel de profesor vea las asignaturas desde cualquier ordenador
+  // leyendo el mismo asignaturas.json que usan los alumnos.
+  const publico = await cargarAsignaturasPublicas();
+  window._asignaturasPublicas = publico.asignaturas || [];
+  if (publico.maestroUrl) {
+    MAESTRO_URL = publico.maestroUrl;
+    localStorage.setItem(MAESTRO_URL_KEY, MAESTRO_URL);
+  }
+
+  const locales = cargarAsignaturas();
+  const porNombre = new Map();
+  [...(publico.asignaturas || []), ...locales].forEach((a, idx) => {
+    if (!a || !a.nombre || !a.scriptUrl) return;
+    const idBase = a.id || ('PUB-' + btoa(unescape(encodeURIComponent(a.nombre))).replace(/=+$/,'').slice(0,12));
+    porNombre.set(a.nombre, { id: idBase, nombre: a.nombre, sheetId: a.sheetId || '', scriptUrl: a.scriptUrl });
+  });
+  const fusionadas = [...porNombre.values()];
+  if (fusionadas.length) {
+    localStorage.setItem(ASIGNATURAS_KEY, JSON.stringify(fusionadas));
+  }
+  return fusionadas;
+}
+
 async function iniciarFlujoAlumno() {
   // Cargar asignaturas públicas y fijar MAESTRO_URL desde el JSON si está
   irA('screen-loading');
@@ -866,7 +891,7 @@ function mostrarJsonPublico() {
   // Versión pública: sin id interno, incluye maestroUrl global
   const publico = {
     maestroUrl: MAESTRO_URL || '',
-    asignaturas: asignaturas.map(a => ({ nombre: a.nombre, scriptUrl: a.scriptUrl }))
+    asignaturas: asignaturas.map(a => ({ nombre: a.nombre, sheetId: a.sheetId || '', scriptUrl: a.scriptUrl }))
   };
   const json = JSON.stringify(publico, null, 2);
   const wrap = document.getElementById('json-publico-wrap');
@@ -897,7 +922,7 @@ function renderizarListaAsignaturas() {
     <div class="list-item" onclick="abrirAsignatura('${a.id}')">
       <div>
         <div class="list-item-title">${a.nombre}</div>
-        <div class="list-item-sub">Sheet: ${a.sheetId.slice(0,20)}...</div>
+        <div class="list-item-sub">${a.sheetId ? ('Sheet: ' + a.sheetId.slice(0,20) + '...') : 'Cargada desde asignaturas.json'}</div>
       </div>
       <span style="font-size:18px;">→</span>
     </div>`).join('');
@@ -916,10 +941,13 @@ function abrirAsignatura(id) {
 // ═══════════════════════════════════════════════════════
 // LOGIN
 // ═══════════════════════════════════════════════════════
-function loginProfesor() {
+async function loginProfesor() {
   const pwd = document.getElementById('login-password').value;
   if (pwd === CONFIG.password) {
     localStorage.setItem(PROFESOR_KEY, '1');
+    irA('screen-loading');
+    document.getElementById('loading-text').textContent = 'Cargando configuración del profesor...';
+    await cargarConfigProfesorPublica();
     renderizarListaAsignaturas();
     irA('screen-asignaturas');
   } else {
@@ -1173,7 +1201,7 @@ async function cargarFuentesParaDetalle(asig) {
     try {
       const resp = await fetch(asig.scriptUrl + '?action=getPreguntas');
       const data = await resp.json();
-      const preguntas = (Array.isArray(data) ? data.slice(1) : []).map(r => (r[10] || 'PROPIA').toString().trim().toUpperCase());
+      const preguntas = (Array.isArray(data) ? data.slice(1) : []).map(r => extraerFuenteDesdeRow(r));
       fuentes = [...new Set(preguntas)].sort();
       detalleFuentesPorAsignatura[asig.nombre] = fuentes;
     } catch(e) {
@@ -1274,6 +1302,54 @@ async function borrarAlumnoDetalle() {
 // ═══════════════════════════════════════════════════════
 const _cachePreguntasPorAsig = {}; // clave: scriptUrl, valor: array preguntas
 
+function valCelda(v, fb='') {
+  return v === undefined || v === null ? fb : String(v).trim();
+}
+
+function esLetraRespuesta(v) {
+  return ['A','B','C','D','E'].includes(valCelda(v).toUpperCase());
+}
+
+function normalizarPreguntaRow(row, i=0) {
+  // Formato 4 opciones:
+  // 0 tema_id, 1 tema_nombre, 2 concepto_id, 3 concepto_nombre, 4 enunciado,
+  // 5 A, 6 B, 7 C, 8 D, 9 correcta, 10 fuente, 11 dificultad...
+  // Formato 5 opciones:
+  // 5 A, 6 B, 7 C, 8 D, 9 E, 10 correcta, 11 fuente, 12 dificultad...
+  const tiene5Opciones = valCelda(row[9]) && esLetraRespuesta(row[10]);
+  const despl = tiene5Opciones ? 1 : 0;
+  const opciones = { a: valCelda(row[5]), b: valCelda(row[6]), c: valCelda(row[7]), d: valCelda(row[8]) };
+  if (tiene5Opciones) opciones.e = valCelda(row[9]);
+
+  return {
+    id: valCelda(row[18 + despl], i + 1),
+    tema: valCelda(row[0]),
+    tema_nombre: valCelda(row[1]),
+    concepto_id: valCelda(row[2]),
+    concepto: valCelda(row[3]),
+    enunciado: valCelda(row[4]),
+    opciones,
+    respuesta_correcta: valCelda(row[9 + despl]).toUpperCase(),
+    fuente: valCelda(row[10 + despl], 'PROPIA').toUpperCase(),
+    dificultad: valCelda(row[11 + despl], 'media').toLowerCase(),
+    explicacion_corta: valCelda(row[12 + despl]),
+    explicacion_larga: valCelda(row[13 + despl]),
+    estado_explicacion: valCelda(row[14 + despl], 'ninguna').toLowerCase(),
+    tags: valCelda(row[15 + despl]),
+    activa: !['0','false','no'].includes(valCelda(row[16 + despl], '1').toLowerCase()),
+    version: valCelda(row[17 + despl], '1')
+  };
+}
+
+function extraerFuenteDesdeRow(row) {
+  const tiene5Opciones = valCelda(row[9]) && esLetraRespuesta(row[10]);
+  return valCelda(row[tiene5Opciones ? 11 : 10], 'PROPIA').toUpperCase();
+}
+
+function letrasOpciones(p) {
+  return ['a','b','c','d','e'].filter(l => p && p.opciones && p.opciones[l]);
+}
+
 async function cargarPreguntas() {
   const key = asignaturaActual ? asignaturaActual.scriptUrl : '';
   if (_cachePreguntasPorAsig[key] && _cachePreguntasPorAsig[key].length > 0) {
@@ -1287,24 +1363,8 @@ async function cargarPreguntas() {
 
   todasLasPreguntas = [];
   const data = await api({ action: 'getPreguntas' });
-  todasLasPreguntas = data.slice(1).map((row, i) => ({
-    id: val(row[18], i + 1),
-    tema: val(row[0]),
-    tema_nombre: val(row[1]),
-    concepto_id: val(row[2]),
-    concepto: val(row[3]),
-    enunciado: val(row[4]),
-    opciones: { a: val(row[5]), b: val(row[6]), c: val(row[7]), d: val(row[8]) },
-    respuesta_correcta: val(row[9]).toUpperCase(),
-    fuente: val(row[10], 'PROPIA').toUpperCase(),
-    dificultad: val(row[11], 'media').toLowerCase(),
-    explicacion_corta: val(row[12]),
-    explicacion_larga: val(row[13]),
-    estado_explicacion: val(row[14], 'ninguna').toLowerCase(),
-    tags: val(row[15]),
-    activa: !['0','false','no'].includes(val(row[16], '1').toLowerCase()),
-    version: val(row[17], '1')
-  })).filter(p => p.activa && p.enunciado && p.opciones.a && p.opciones.b && p.opciones.c && p.opciones.d && p.respuesta_correcta);
+  todasLasPreguntas = data.slice(1).map((row, i) => normalizarPreguntaRow(row, i))
+    .filter(p => p.activa && p.enunciado && p.opciones.a && p.opciones.b && p.opciones.c && p.opciones.d && p.respuesta_correcta);
 
   _cachePreguntasPorAsig[key] = todasLasPreguntas;
   return todasLasPreguntas;
@@ -1800,7 +1860,7 @@ function renderizarExamen() {
       <div class="pregunta-num">Pregunta ${idx+1} · ${p.tema} · ${p.concepto}</div>
       <div class="pregunta-texto">${p.enunciado}</div>
       <div class="opciones">
-        ${['a','b','c','d'].map(l => `
+        ${letrasOpciones(p).map(l => `
           <div class="opcion" id="op-${idx}-${l}" onclick="seleccionarOpcion(${idx},'${l}')">
             <div class="opcion-letra">${l.toUpperCase()}</div>
             <div class="opcion-texto">${p.opciones[l]}</div>
@@ -1811,7 +1871,7 @@ function renderizarExamen() {
 }
 
 function seleccionarOpcion(idx, letra) {
-  ['a','b','c','d'].forEach(l => document.getElementById('op-'+idx+'-'+l)?.classList.remove('selected'));
+  ['a','b','c','d','e'].forEach(l => document.getElementById('op-'+idx+'-'+l)?.classList.remove('selected'));
   document.getElementById('op-'+idx+'-'+letra).classList.add('selected');
   respuestasAlumna[idx] = letra.toUpperCase();
   actualizarProgreso();
@@ -1926,7 +1986,7 @@ function mostrarResultados(correctas, total) {
       <div style="font-size:11px;color:#888;margin-bottom:4px;">${icono} P${idx+1} · ${p.tema} · ${p.concepto}</div>
       <div style="font-size:13px;font-weight:500;margin-bottom:9px;">${p.enunciado}</div>
       <div style="display:flex;flex-direction:column;gap:5px;">
-        ${['a','b','c','d'].map(l=>{
+        ${letrasOpciones(p).map(l=>{
           let s='padding:7px 11px;border-radius:6px;font-size:12px;border:1px solid #e0e0e0;';let pre='';
           if(l.toUpperCase()===p.respuesta_correcta){s+='background:#e6f4ea;border-color:#188038;color:#188038;font-weight:500;';pre='✓ ';}
           else if(r&&l.toUpperCase()===r&&!ok){s+='background:#fce8e6;border-color:#d93025;color:#d93025;';pre='✗ ';}
@@ -2416,7 +2476,7 @@ async function mostrarDetalleExamenAlumno(examen, idx, todos, porExamen) {
         <div style="font-size:11px;color:#888;margin-bottom:4px;">${icono} P${i+1} · ${p.tema} · ${p.concepto}</div>
         <div style="font-size:13px;font-weight:500;margin-bottom:9px;">${p.enunciado}</div>
         <div style="display:flex;flex-direction:column;gap:5px;">`;
-      ['a','b','c','d'].forEach(l => {
+      letrasOpciones(p).forEach(l => {
         let s = 'padding:7px 11px;border-radius:6px;font-size:12px;border:1px solid #e0e0e0;';
         let pre = '';
         const L = l.toUpperCase();
@@ -2802,7 +2862,7 @@ async function mostrarDetalleExamen(examen, idx, todos, porExamen) {
         <div style="font-size:11px;color:#888;margin-bottom:4px;">${icono} P${i+1} · ${p.tema} · ${p.concepto}</div>
         <div style="font-size:13px;font-weight:500;margin-bottom:9px;">${p.enunciado}</div>
         <div style="display:flex;flex-direction:column;gap:5px;">`;
-      ['a','b','c','d'].forEach(l => {
+      letrasOpciones(p).forEach(l => {
         let s = 'padding:7px 11px;border-radius:6px;font-size:12px;border:1px solid #e0e0e0;';
         let pre = '';
         const L = l.toUpperCase();
