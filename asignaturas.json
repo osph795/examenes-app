@@ -3,19 +3,28 @@
   "asignaturas": [
     {
       "nombre": "Bioquímica",
+      "sheetId": "11NcSyTblUMxUMWzr1KNQquDHKFB_C4xpv_p8uBF7Kk4",
       "scriptUrl": "https://script.google.com/macros/s/AKfycbxbC2DCizn7ZnmAf-dLf8UcVBA1ShBoadHOWLwLGkadXIEJyN-9kk5zaEIDqvSd0AzEcQ/exec"
     },
     {
       "nombre": "Anatomía Patológica",
+      "sheetId": "1OIFwoGjQEbiPnwNh7tn1mgdSxj3-FRv-ueDwE_CcOM0",
       "scriptUrl": "https://script.google.com/macros/s/AKfycbyPHh2Oe9FE5CKlfB-p22EXmREMdGYoIGcw5lxkw6S9ohdFpBmVYO2W5WpH8zgSIz6M/exec"
     },
     {
       "nombre": "Fisiología Médica I",
+      "sheetId": "1hzOCsaFCusTniFq8UaW95hnRjbIGhw0Hro-NxBvWjNY",
       "scriptUrl": "https://script.google.com/macros/s/AKfycbxp1X5g25gJNwwSeHMhxJFaz2u0Ct1rcH7uY6KZpeMpx-iZEcRqpIP0thFsC1I8vW7Y/exec"
     },
     {
       "nombre": "Endocrinología",
+      "sheetId": "1e6etDfh-9-Mr0RtGU1VXQdDvKK4NmB_v3KEIEaat6zI",
       "scriptUrl": "https://script.google.com/macros/s/AKfycbyZULCHHU_ddvZXJkfH__OqCJoSZ-Q5OGpoZZMfZkyhAg20FhsM92AXxP_4GRvRCxGG/exec"
+    },
+    {
+      "nombre": "Neuroanatomía",
+      "sheetId": "1lV9Q2fP6AOTCzKOTnlaBn56MMHx3aIlL6o5u3x1gKBc",
+      "scriptUrl": "https://script.google.com/macros/s/AKfycbysHYXPLUS56eD_XBzHHL_oHLxaRl1czV5ZruGaV-1frFNCThPmZLd0TQtTRKEMJq4UDw/exec"
     }
   ]
 }
