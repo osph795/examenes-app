@@ -1311,39 +1311,66 @@ function esLetraRespuesta(v) {
 }
 
 function normalizarPreguntaRow(row, i=0) {
-  // Formato 4 opciones:
-  // 0 tema_id, 1 tema_nombre, 2 concepto_id, 3 concepto_nombre, 4 enunciado,
-  // 5 A, 6 B, 7 C, 8 D, 9 correcta, 10 fuente, 11 dificultad...
-  // Formato 5 opciones:
-  // 5 A, 6 B, 7 C, 8 D, 9 E, 10 correcta, 11 fuente, 12 dificultad...
-  const tiene5Opciones = valCelda(row[9]) && esLetraRespuesta(row[10]);
-  const despl = tiene5Opciones ? 1 : 0;
-  const opciones = { a: valCelda(row[5]), b: valCelda(row[6]), c: valCelda(row[7]), d: valCelda(row[8]) };
-  if (tiene5Opciones) opciones.e = valCelda(row[9]);
+  // Soporta dos estructuras sin romper el resto de la app:
+  //
+  // 1) Formato fijo con columna opcion_e, aunque esté vacía:
+  //    0 tema_id, 1 tema_nombre, 2 concepto_id, 3 concepto_nombre, 4 enunciado,
+  //    5 A, 6 B, 7 C, 8 D, 9 E, 10 correcta, 11 fuente, 12 dificultad,
+  //    13 explicacion_corta, 14 explicacion_larga, 15 estado_explicacion,
+  //    16 tags, 17 activa, 18 version, 19 pregunta_id.
+  //
+  // 2) Formato compacto de 4 opciones, sin columna opcion_e:
+  //    0 tema_id, 1 tema_nombre, 2 concepto_id, 3 concepto_nombre, 4 enunciado,
+  //    5 A, 6 B, 7 C, 8 D, 9 correcta, 10 fuente, 11 dificultad...
+  //
+  // La clave es detectar dónde está la columna correcta, no si opcion_e tiene contenido.
+  // Así una pregunta con 4 opciones dentro del formato fijo no se descarta por tener opcion_e vacía.
+  const formatoFijoConOpcionE = esLetraRespuesta(row[10]);
+
+  const idxCorrecta = formatoFijoConOpcionE ? 10 : 9;
+  const idxFuente = formatoFijoConOpcionE ? 11 : 10;
+  const idxDificultad = formatoFijoConOpcionE ? 12 : 11;
+  const idxExpCorta = formatoFijoConOpcionE ? 13 : 12;
+  const idxExpLarga = formatoFijoConOpcionE ? 14 : 13;
+  const idxEstado = formatoFijoConOpcionE ? 15 : 14;
+  const idxTags = formatoFijoConOpcionE ? 16 : 15;
+  const idxActiva = formatoFijoConOpcionE ? 17 : 16;
+  const idxVersion = formatoFijoConOpcionE ? 18 : 17;
+  const idxId = formatoFijoConOpcionE ? 19 : 18;
+
+  const opciones = {
+    a: valCelda(row[5]),
+    b: valCelda(row[6]),
+    c: valCelda(row[7]),
+    d: valCelda(row[8])
+  };
+
+  const opcionE = formatoFijoConOpcionE ? valCelda(row[9]) : '';
+  if (opcionE) opciones.e = opcionE;
 
   return {
-    id: valCelda(row[18 + despl], i + 1),
+    id: valCelda(row[idxId], i + 1),
     tema: valCelda(row[0]),
     tema_nombre: valCelda(row[1]),
     concepto_id: valCelda(row[2]),
     concepto: valCelda(row[3]),
     enunciado: valCelda(row[4]),
     opciones,
-    respuesta_correcta: valCelda(row[9 + despl]).toUpperCase(),
-    fuente: valCelda(row[10 + despl], 'PROPIA').toUpperCase(),
-    dificultad: valCelda(row[11 + despl], 'media').toLowerCase(),
-    explicacion_corta: valCelda(row[12 + despl]),
-    explicacion_larga: valCelda(row[13 + despl]),
-    estado_explicacion: valCelda(row[14 + despl], 'ninguna').toLowerCase(),
-    tags: valCelda(row[15 + despl]),
-    activa: !['0','false','no'].includes(valCelda(row[16 + despl], '1').toLowerCase()),
-    version: valCelda(row[17 + despl], '1')
+    respuesta_correcta: valCelda(row[idxCorrecta]).toUpperCase(),
+    fuente: valCelda(row[idxFuente], 'PROPIA').toUpperCase(),
+    dificultad: valCelda(row[idxDificultad], 'media').toLowerCase(),
+    explicacion_corta: valCelda(row[idxExpCorta]),
+    explicacion_larga: valCelda(row[idxExpLarga]),
+    estado_explicacion: valCelda(row[idxEstado], 'ninguna').toLowerCase(),
+    tags: valCelda(row[idxTags]),
+    activa: !['0','false','no'].includes(valCelda(row[idxActiva], '1').toLowerCase()),
+    version: valCelda(row[idxVersion], '1')
   };
 }
 
 function extraerFuenteDesdeRow(row) {
-  const tiene5Opciones = valCelda(row[9]) && esLetraRespuesta(row[10]);
-  return valCelda(row[tiene5Opciones ? 11 : 10], 'PROPIA').toUpperCase();
+  const formatoFijoConOpcionE = esLetraRespuesta(row[10]);
+  return valCelda(row[formatoFijoConOpcionE ? 11 : 10], 'PROPIA').toUpperCase();
 }
 
 function letrasOpciones(p) {
@@ -1364,7 +1391,14 @@ async function cargarPreguntas() {
   todasLasPreguntas = [];
   const data = await api({ action: 'getPreguntas' });
   todasLasPreguntas = data.slice(1).map((row, i) => normalizarPreguntaRow(row, i))
-    .filter(p => p.activa && p.enunciado && p.opciones.a && p.opciones.b && p.opciones.c && p.opciones.d && p.respuesta_correcta);
+    .filter(p => {
+      const letras = letrasOpciones(p);
+      return p.activa &&
+        p.enunciado &&
+        p.opciones.a && p.opciones.b && p.opciones.c && p.opciones.d &&
+        p.respuesta_correcta &&
+        letras.includes(p.respuesta_correcta.toLowerCase());
+    });
 
   _cachePreguntasPorAsig[key] = todasLasPreguntas;
   return todasLasPreguntas;
