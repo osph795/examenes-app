@@ -25,6 +25,11 @@
       "nombre": "Neuroanatomía",
       "sheetId": "1lV9Q2fP6AOTCzKOTnlaBn56MMHx3aIlL6o5u3x1gKBc",
       "scriptUrl": "https://script.google.com/macros/s/AKfycbysHYXPLUS56eD_XBzHHL_oHLxaRl1czV5ZruGaV-1frFNCThPmZLd0TQtTRKEMJq4UDw/exec"
+    },
+    {
+      "nombre": "Farmacología",
+      "sheetId": "1c5E3CXXwdzVCm8osnsc7zgvULP9YfsDAVdFsmu-Br-8",
+      "scriptUrl": "https://script.google.com/macros/s/AKfycbzUi8N7eizuoqdIjiZoXW9lBRzy-1SpPEG3tEEZuN7yPUpUMT8o5OLXfBXt9qQAuiM-/exec"
     }
   ]
 }
