@@ -35,6 +35,11 @@
       "nombre": "Cirugía Pediátrica",
       "sheetId": "1cl065fjIBS7Y2u1MO2EVudB6ZiWXcGLnFsScuBjQNqA",
       "scriptUrl": "https://script.google.com/macros/s/AKfycbwfJVaDuBMFUczgTpbgtlrbcAjSOYq2_NYc21fXEMbq1mc1TeACXhan0MV-qGmrXykn/exec"
+    },
+    {
+      "nombre": "Neurología/Neurocirugía",
+      "sheetId": "1xHPvlGhiNeSxjj1CRJQ2AnJQMFNMfAzRONwIgcd19qY",
+      "scriptUrl": "https://script.google.com/macros/s/AKfycbxQBInxphCw-sFtTFI9Zf9919-un3FBck460wKddj4gTZpsEMxptVBFlmrLcMGt9uhh/exec"
     }
   ]
 }
