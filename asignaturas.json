@@ -40,6 +40,11 @@
       "nombre": "Neurología/Neurocirugía",
       "sheetId": "1xHPvlGhiNeSxjj1CRJQ2AnJQMFNMfAzRONwIgcd19qY",
       "scriptUrl": "https://script.google.com/macros/s/AKfycbxQBInxphCw-sFtTFI9Zf9919-un3FBck460wKddj4gTZpsEMxptVBFlmrLcMGt9uhh/exec"
+    },
+    {
+      "nombre": "Documentación",
+      "sheetId": "1Bv2nZRi8zbKU4yHL8VJ4FOF4O2BoWb_28wFA3ckzUBw",
+      "scriptUrl": "https://script.google.com/macros/s/AKfycbwRNT8fdk73qnEMFmyX_kPjyqn71bKSrWqWFjKew8J4SBHzs0lPc3K9LnLMDMXev0Qu/exec"
     }
   ]
 }
