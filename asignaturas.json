@@ -55,6 +55,11 @@
       "nombre": "Fisiología Médica III",
       "sheetId": "1fMyZuqmSVOkbB9v4ClUJ0bRVOzndOHEZSFwpw1vvkQo",
       "scriptUrl": "https://script.google.com/macros/s/AKfycbynrBahF8MeowBcfjXwvATqbHqENBkg8JGwSEBp8m03UL0jqdc39iUJnt6BTVhNbIIx/exec"
+    },
+    {
+      "nombre": "Pediatría",
+      "sheetId": "1UT0gUOYe_TjC9Cxsh0QZl_jOAf1yMtcuk-DNX5DhHsU",
+      "scriptUrl": "https://script.google.com/macros/s/AKfycbwAJVOyNTcEDWG43s0IAS5lyXPk_EwVm75LeHikq4WCd82rbuTQhavn0hTH5Yaej-0F/exec"
     }
   ]
 }
