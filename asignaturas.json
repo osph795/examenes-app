@@ -45,6 +45,16 @@
       "nombre": "Documentación",
       "sheetId": "1Bv2nZRi8zbKU4yHL8VJ4FOF4O2BoWb_28wFA3ckzUBw",
       "scriptUrl": "https://script.google.com/macros/s/AKfycbwRNT8fdk73qnEMFmyX_kPjyqn71bKSrWqWFjKew8J4SBHzs0lPc3K9LnLMDMXev0Qu/exec"
+    },
+     {
+      "nombre": "Psiquiatría",
+      "sheetId": "1geiUF6mSO9kHx6bdYXK2BKMjixwjHspQ7smjP5BxBSc",
+      "scriptUrl": "https://script.google.com/macros/s/AKfycbyok7o3bMVH6p_XkYjaeaLqeCN6kMjn7-ogGQs992ir8U_XWTx8xibiVtRxvN_XP1-4/exec"
+    },
+    {
+      "nombre": "Fisiología Médica III",
+      "sheetId": "1fMyZuqmSVOkbB9v4ClUJ0bRVOzndOHEZSFwpw1vvkQo",
+      "scriptUrl": "https://script.google.com/macros/s/AKfycbynrBahF8MeowBcfjXwvATqbHqENBkg8JGwSEBp8m03UL0jqdc39iUJnt6BTVhNbIIx/exec"
     }
   ]
 }
