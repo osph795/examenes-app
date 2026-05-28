@@ -60,6 +60,11 @@
       "nombre": "Pediatría",
       "sheetId": "1UT0gUOYe_TjC9Cxsh0QZl_jOAf1yMtcuk-DNX5DhHsU",
       "scriptUrl": "https://script.google.com/macros/s/AKfycbwAJVOyNTcEDWG43s0IAS5lyXPk_EwVm75LeHikq4WCd82rbuTQhavn0hTH5Yaej-0F/exec"
+    {,
+    {
+      "nombre": "Comunicación",
+      "sheetId": "1NwOPFoshwKNYOqNz9pU28Fljtm9PlyYKlyJo9RLjuTk",
+      "scriptUrl": "https://script.google.com/macros/s/AKfycbx2sv7vEMhF_eBAL9W0sqWCG2Xy7IEGtZdYaFpC7_rShF1K9Ih5JutSXMWQEOtmAsVU/exec"
     }
   ]
 }
