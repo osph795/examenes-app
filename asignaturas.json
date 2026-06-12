@@ -65,6 +65,11 @@
       "nombre": "Comunicación",
       "sheetId": "1NwOPFoshwKNYOqNz9pU28Fljtm9PlyYKlyJo9RLjuTk",
       "scriptUrl": "https://script.google.com/macros/s/AKfycbx2sv7vEMhF_eBAL9W0sqWCG2Xy7IEGtZdYaFpC7_rShF1K9Ih5JutSXMWQEOtmAsVU/exec"
+    },
+    {
+      "nombre": "Psicología Médica",
+      "sheetId": "1Rjb8Xt8risAkZjFbnoF7_Bl9CJeTxYpYfHzVqyHQ-Fk",
+      "scriptUrl": "https://script.google.com/macros/s/AKfycbwpKu7q1axJdyJQ7N2dWbZRJNi8XA_LhUbi634V3pATOl5smu8QtZC-eCE69DAnxjA6/exec"
     }
   ]
 }
