@@ -1,0 +1,10 @@
+{
+  "maestroUrl": "https://script.google.com/macros/s/AKfycbyAHNVAa3ALaKAOy2RhEKoAQkHSLZY1hl6nr6eyJBGZ8KPcKL0F91euIWmJpvopRMwm/exec",
+  "asignaturas": [
+    {
+      "nombre": "PRUEBA FM3",
+      "sheetId": "1AOVN9OBehPfn13aYa0tLe-lFZHQWBmdJIQg0IYEQVjk",
+      "scriptUrl": "https://script.google.com/macros/s/AKfycbyypcy6wFbS8clotGW7qXZ4X3RgOl3OY8l8-F07E4i3yJWDoa0v1JJfGyp2uBGStmY5/exec"
+    }
+  ]
+}
