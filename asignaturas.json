@@ -80,6 +80,11 @@
       "nombre": "Farmacología General",
       "sheetId": "1JXfNT7uL3CaaaKJG_uZ-IQQVuS7mG1x2nJMUZoB8PVQ",
       "scriptUrl": "https://script.google.com/macros/s/AKfycbzqjm2jEjoE3PQN3-17Faii5P64LFF_GFtsmtER92B2_Ck49-5ZMqQ6rwdfKifqs2J2/exec"
+    }, 
+    {
+      "nombre": "Patología General y Semiología",
+      "sheetId": "1mKViGlf3viaWy7wzAju2GCvgIxKP6zkah9N2cceR3_I",
+      "scriptUrl": "https://script.google.com/macros/s/AKfycbwAMig0c-qM5dtC_08V_rKC-rzNxzmt_xklFE7XiaStrIEjKaA-mh4XY9AYXX_4hpsV/exec"
     }
   ]
 }
