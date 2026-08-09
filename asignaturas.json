@@ -3,8 +3,8 @@
   "asignaturas": [
     {
       "nombre": "Bioquímica",
-      "sheetId": "15rvgIbZPDfBFIWL6RQVUUgJWq-yWyqAMv5LFUo97sSY",
-      "scriptUrl": "https://script.google.com/macros/s/AKfycbwPz-XJRYfD1GXqhZLHOfENLA1dZLLQX5S3zeG0ee63vOX-Ke5-I9ax1ud4xnj2XFNtyw/exec"
+      "sheetId": "11NcSyTblUMxUMWzr1KNQquDHKFB_C4xpv_p8uBF7Kk4",
+      "scriptUrl": "https://script.google.com/macros/s/AKfycbxbC2DCizn7ZnmAf-dLf8UcVBA1ShBoadHOWLwLGkadXIEJyN-9kk5zaEIDqvSd0AzEcQ/exec"
     },
     {
       "nombre": "Anatomía Patológica",
@@ -46,7 +46,7 @@
       "sheetId": "1Bv2nZRi8zbKU4yHL8VJ4FOF4O2BoWb_28wFA3ckzUBw",
       "scriptUrl": "https://script.google.com/macros/s/AKfycbwRNT8fdk73qnEMFmyX_kPjyqn71bKSrWqWFjKew8J4SBHzs0lPc3K9LnLMDMXev0Qu/exec"
     },
-     {
+    {
       "nombre": "Psiquiatría",
       "sheetId": "1geiUF6mSO9kHx6bdYXK2BKMjixwjHspQ7smjP5BxBSc",
       "scriptUrl": "https://script.google.com/macros/s/AKfycbyok7o3bMVH6p_XkYjaeaLqeCN6kMjn7-ogGQs992ir8U_XWTx8xibiVtRxvN_XP1-4/exec"
@@ -80,7 +80,7 @@
       "nombre": "Farmacología General",
       "sheetId": "1JXfNT7uL3CaaaKJG_uZ-IQQVuS7mG1x2nJMUZoB8PVQ",
       "scriptUrl": "https://script.google.com/macros/s/AKfycbzqjm2jEjoE3PQN3-17Faii5P64LFF_GFtsmtER92B2_Ck49-5ZMqQ6rwdfKifqs2J2/exec"
-    }, 
+    },
     {
       "nombre": "Patología General y Semiología",
       "sheetId": "1mKViGlf3viaWy7wzAju2GCvgIxKP6zkah9N2cceR3_I",
