@@ -75,6 +75,11 @@
       "nombre": "Anatomía Patológica General",
       "sheetId": "1rpxPCv9SwYx2wCz0B7QfbSqswKkbHmWMpzOWJokahwE",
       "scriptUrl": "https://script.google.com/macros/s/AKfycbxQgdoqH_bQf8ihf-Gl42HWGXrPm2JpSH8tXcwOO3ulpj2kI_t4bxfVXKa-_YGg-4E/exec"
+    },
+    {
+      "nombre": "Farmacología General",
+      "sheetId": "1JXfNT7uL3CaaaKJG_uZ-IQQVuS7mG1x2nJMUZoB8PVQ",
+      "scriptUrl": "https://script.google.com/macros/s/AKfycbzqjm2jEjoE3PQN3-17Faii5P64LFF_GFtsmtER92B2_Ck49-5ZMqQ6rwdfKifqs2J2/exec"
     }
   ]
 }
