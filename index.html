@@ -1867,17 +1867,26 @@ async function cargarFuentesParaDetalle(asig) {
   const grid = card.querySelector('.det-asig-fuentes-grid');
   if (!grid) return;
 
+  grid.dataset.fuentesPendientes = '1';
   // Caché por nombre de asignatura
   let fuentes = detalleFuentesPorAsignatura[asig.nombre];
   if (!fuentes) {
     try {
-      const resp = await fetch(asig.scriptUrl + '?action=getPreguntas');
-      const data = await resp.json();
+      let data;
+      if (bancoConSesionV14(asig)) {
+        data = await solicitarBancoV14({action:'getPreguntas'}, asig);
+      } else {
+        const response = await fetch(asig.scriptUrl + '?action=getPreguntas');
+        if (!response.ok) throw new Error('No se pudieron consultar las fuentes.');
+        data = await response.json();
+      }
+      if (!Array.isArray(data)) throw new Error('El banco no devolvió una lista de preguntas.');
       const preguntas = (Array.isArray(data) ? data.slice(1) : []).map(r => extraerFuenteDesdeRow(r));
       fuentes = [...new Set(preguntas)].sort();
       detalleFuentesPorAsignatura[asig.nombre] = fuentes;
     } catch(e) {
-      fuentes = [];
+      grid.textContent = 'No se pudieron cargar las fuentes. Se conservará la selección anterior.';
+      return;
     }
   }
 
@@ -1886,10 +1895,12 @@ async function cargarFuentesParaDetalle(asig) {
   const fuenteLabels = { PROPIA: '⭐ Mis preguntas', UV: '🔵 Univ. Valencia', UCM: '🟢 Univ. Complutense' };
 
   if (!fuentes.length) {
-    grid.innerHTML = '<span style="font-size:12px;color:#888;">(No se pudieron cargar las fuentes disponibles)</span>';
+    grid.innerHTML = '<span style="font-size:12px;color:#888;">Todavía no hay fuentes disponibles en este banco.</span>';
     return;
   }
+  grid.dataset.fuentesPendientes = '';
   grid.innerHTML = '';
+  fuentes = [...new Set([...fuentes, ...seleccionadas])].sort();
   fuentes.forEach(f => {
     const div = document.createElement('div');
     div.className = 'tema-check' + (seleccionadas.has(f) ? ' selected' : '');
@@ -1924,7 +1935,10 @@ async function guardarAlumnoDetalle() {
     let fuentes = '';
     if (modo === 'autonomo') {
       const sel = [...card.querySelectorAll('.det-asig-fuentes-grid .tema-check.selected')].map(el => el.dataset.fuente);
-      fuentes = sel.join(',');
+      const gridFuentes = card.querySelector('.det-asig-fuentes-grid');
+      fuentes = gridFuentes?.dataset.fuentesPendientes === '1'
+        ? (gridFuentes.dataset.fuentesCsv || '')
+        : sel.join(',');
     }
     asignaturasSeleccionadas.push({ asignatura: nombreAsig, modo, fuentes });
   });
@@ -5885,21 +5899,21 @@ async function cerrarSesionProfesorV13() {
   await cierre;
 }
 
-function bancoConSesionV14() {
-  return asignaturaActual?.nombre === 'MIR' || asignaturaActual?.seguridad === 'sesion-v14';
+function bancoConSesionV14(banco = asignaturaActual) {
+  return banco?.nombre === 'MIR' || banco?.seguridad === 'sesion-v14';
 }
 
-async function solicitarBancoV14(params) {
-  if (!asignaturaActual?.scriptUrl) throw new Error('Selecciona un banco.');
+async function solicitarBancoV14(params, banco = asignaturaActual) {
+  if (!banco?.scriptUrl) throw new Error('Selecciona un banco.');
   const bancosConocidos = [...(window._asignaturasPublicas || []), ...cargarAsignaturas()];
-  if (!bancosConocidos.some(b => b.nombre === asignaturaActual.nombre && b.scriptUrl === asignaturaActual.scriptUrl)) {
+  if (!bancosConocidos.some(b => b.nombre === banco.nombre && b.scriptUrl === banco.scriptUrl)) {
     throw new Error('La dirección del banco no coincide con la configuración. Entra desde el menú principal.');
   }
   const token = alumnoVerificado
     ? alumnoVerificado.session_token
     : sessionStorage.getItem('profesor_v13_' + MAESTRO_URL);
   if (!token) throw new Error('Vuelve a entrar con tu PIN o con tu contraseña para activar la sesión del banco.');
-  const response = await fetch(asignaturaActual.scriptUrl, {
+  const response = await fetch(banco.scriptUrl, {
     method:'POST', body:new URLSearchParams({...params,session_token:token}),
     redirect:'follow',cache:'no-store'
   });

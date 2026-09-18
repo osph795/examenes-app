@@ -90,6 +90,12 @@
       "nombre": "Fisiología Médica II",
       "sheetId": "1sBD3DejpjEhpR7ZgssEIIWCyyMr4UlL63FCFYxH_vQk",
       "scriptUrl": "https://script.google.com/macros/s/AKfycbzQ1IPd4LsR_apMIdzmOsD630RA0K_pq1UML-ffwou6E7yCenr1BXzs7sEP_OhfyTYA/exec"
+    },
+    {
+      "nombre": "MIR",
+      "sheetId": "1upCSe1e5jSRvcr4gJfbUDB6lfj98aABv7txP9A8XgTg",
+      "scriptUrl": "https://script.google.com/macros/s/AKfycbygohjP8O7bFTuIdHPXfCeBHHtJ02dX2J20LN6ib5nSaJNX2qcAFx4MsE1S1FI7AnvE/exec",
+      "seguridad": "sesion-v14"
     }
   ]
 }
