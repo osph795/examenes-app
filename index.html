@@ -360,6 +360,10 @@
     .image-library-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
   }
 
+  .btn-duda-v15 { margin: 8px 0 0; white-space: normal; }
+  .btn-duda-v15[aria-pressed="true"] { background:#fff1cb; border-color:#9c6500; color:#6c4500; }
+  .duda-help-v15 { font-size:12px; color:#666; margin:7px 0 16px; }
+  [hidden] { display:none !important; }
 </style>
 </head>
 <body>
@@ -869,12 +873,21 @@
       <select id="examen-alumno">
         <option value="">— Selecciona alumno —</option>
       </select>
-      <label>Temas a incluir</label>
+      <label id="prof-contenidos-v15">Temas a incluir</label><div style="margin-bottom:8px;display:flex;gap:8px;"><button class="btn btn-secondary btn-sm" onclick="seleccionarTodosV15(false,true)">Seleccionar todo</button><button class="btn btn-secondary btn-sm" onclick="seleccionarTodosV15(false,false)">Quitar selección</button></div>
       <div class="temas-grid" id="temas-grid-examen"></div>
       <label>Fuente de preguntas</label>
       <div id="fuentes-grid" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;"></div>
       <label>Número de preguntas</label>
-      <input type="number" id="num-preguntas" value="30" min="5" max="200">
+      <input type="number" id="num-preguntas" value="10" min="1" max="200">
+      <div id="prof-repasos-v15" hidden>
+        <label for="prof-modo-repaso">Selección de preguntas</label>
+        <select id="prof-modo-repaso" onchange="actualizarMsgPriorizacion()">
+          <option value="recomendado">Recomendado: repasos pendientes y nuevas</option>
+          <option value="pendientes">Solo repasos pendientes</option>
+          <option value="libre">Práctica libre: incluir las programadas para más adelante</option>
+        </select>
+        <p style="font-size:12px;color:#666;">Los repasos empiezan desde la primera actividad finalizada. Las preguntas acertadas antes de tiempo mantienen su fecha de repaso.</p>
+      </div>
       <div class="msg msg-info" id="msg-priorizacion" style="display:none;"></div>
     </div>
 
@@ -1116,12 +1129,21 @@
     </div>
     <div class="card">
       <h2>Contenido</h2>
-      <label>Temas a incluir</label>
+      <label id="alumno-contenidos-v15">Temas a incluir</label><div style="margin-bottom:8px;display:flex;gap:8px;"><button class="btn btn-secondary btn-sm" onclick="seleccionarTodosV15(true,true)">Seleccionar todo</button><button class="btn btn-secondary btn-sm" onclick="seleccionarTodosV15(true,false)">Quitar selección</button></div>
       <div class="temas-grid" id="alumno-temas-grid"></div>
       <label>Fuente de preguntas</label>
       <div id="alumno-fuentes-grid" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;"></div>
       <label>Número de preguntas</label>
-      <input type="number" id="alumno-num-preguntas" value="30" min="5" max="200">
+      <input type="number" id="alumno-num-preguntas" value="10" min="1" max="200">
+      <div id="alumno-repasos-v15" hidden>
+        <label for="alumno-modo-repaso">Selección de preguntas</label>
+        <select id="alumno-modo-repaso" onchange="actualizarMsgPriorizacionAlumno()">
+          <option value="recomendado">Recomendado: repasos pendientes y nuevas</option>
+          <option value="pendientes">Solo repasos pendientes</option>
+          <option value="libre">Práctica libre: incluir las programadas para más adelante</option>
+        </select>
+        <p style="font-size:12px;color:#666;">Los repasos empiezan desde la primera actividad finalizada. Las preguntas acertadas antes de tiempo mantienen su fecha de repaso.</p>
+      </div>
       <div class="msg msg-info" id="alumno-msg-priorizacion" style="display:none;"></div>
       <button class="btn btn-primary btn-full" id="alumno-btn-generar" onclick="generarExamenAlumno()">Empezar actividad</button>
     </div>
@@ -2160,9 +2182,10 @@ async function initTemasGrid() {
       div.className = 'tema-check selected'; // seleccionadas por defecto
       div.dataset.fuente = f;
       div.textContent = fuenteLabels[f] || f;
-      div.onclick = () => div.classList.toggle('selected');
+      div.onclick = () => { div.classList.toggle('selected'); actualizarMsgPriorizacion(); };
       fuentesGrid.appendChild(div);
     });
+    actualizarMsgPriorizacion();
   } catch(e) {
     if (asignaturaActual?.scriptUrl !== origen) return;
     contenedor.textContent = 'No se pudieron cargar los temas: ' + e.message;
@@ -2178,6 +2201,11 @@ async function initTemasGrid() {
 // PRIORIZACIÓN
 // ═══════════════════════════════════════════════════════
 async function calcularPriorizacion(alumnoId, temasSeleccionados) {
+  if(usaRepasosV15()) {
+    const datos=await api({action:'getRepasos',alumno_id:alumnoId});
+    if(datos.version!==15 || !Array.isArray(datos.items)) throw new Error('Actualiza la implementación del banco MIR a V15 para activar los repasos.');
+    return {...datos,srs:true};
+  }
   try {
     const respuestas = await api({ action: 'getRespuestasAlumno', alumno_id: alumnoId });
     if (!Array.isArray(respuestas) || respuestas.length === 0) return null;
@@ -2207,7 +2235,8 @@ async function calcularPriorizacion(alumnoId, temasSeleccionados) {
   } catch(e) { return null; }
 }
 
-function aplicarPriorizacion(preguntas, pesos, numTotal) {
+function aplicarPriorizacion(preguntas, pesos, numTotal, modo='recomendado') {
+  if(pesos?.srs)return seleccionarRepasosV15(preguntas,pesos,numTotal,modo);
   if (!pesos) return preguntas.sort(() => Math.random() - 0.5).slice(0, numTotal);
 
   // Separar por nivel de prioridad
@@ -2251,6 +2280,8 @@ function aplicarPriorizacion(preguntas, pesos, numTotal) {
 }
 
 async function actualizarMsgPriorizacion() {
+  controlesRepasosV15(false);
+  if(usaRepasosV15())return mostrarResumenRepasosV15(false);
   const alumnoId = document.getElementById('examen-alumno').value;
   const temas = [...document.querySelectorAll('.tema-check.selected')].map(el => el.dataset.tema);
   const msg = document.getElementById('msg-priorizacion');
@@ -2809,9 +2840,10 @@ async function initAlumnoTemasGrid() {
       div.className = 'tema-check selected';
       div.dataset.fuente = f;
       div.textContent = fuenteLabels[f] || f;
-      div.onclick = () => div.classList.toggle('selected');
+      div.onclick = () => { div.classList.toggle('selected'); actualizarMsgPriorizacionAlumno(); };
       fg.appendChild(div);
     });
+    actualizarMsgPriorizacionAlumno();
   } catch(e) {
     if (asignaturaActual?.scriptUrl !== origen) return;
     contenedor.textContent = 'No se pudieron cargar los temas: ' + e.message;
@@ -2824,6 +2856,8 @@ async function initAlumnoTemasGrid() {
 }
 
 async function actualizarMsgPriorizacionAlumno() {
+  controlesRepasosV15(true);
+  if(usaRepasosV15())return mostrarResumenRepasosV15(true);
   const a = alumnoVerificado;
   if (!a) return;
   const temas = [...document.querySelectorAll('#alumno-temas-grid .tema-check.selected')].map(el => el.dataset.tema);
@@ -4073,7 +4107,8 @@ async function generarExamen() {
     if (!filtradas.length) throw new Error('No hay preguntas para los temas y fuentes seleccionados.');
     btn.textContent = 'Calculando priorización...';
     const pesos = await calcularPriorizacion(alumnoId, temasSeleccionados);
-    let seleccionadas = aplicarPriorizacion(filtradas, pesos, Math.min(numPreguntas, filtradas.length));
+    let seleccionadas = aplicarPriorizacion(filtradas, pesos, Math.min(numPreguntas, filtradas.length), document.getElementById('prof-modo-repaso').value);
+    validarSeleccionRepasosV15(seleccionadas);
     if (cfg.mezclar_preguntas === 'SI') seleccionadas = seleccionadas.slice().sort(() => Math.random() - 0.5);
     const codigo = generarCodigo();
     const fecha = new Date().toISOString();
@@ -4120,7 +4155,8 @@ async function generarExamenAlumno() {
     const filtradas = preguntas.filter(p => temasSeleccionados.includes(p.tema) && fuentesFinales.includes(p.fuente));
     if (!filtradas.length) throw new Error('No hay preguntas para los temas y fuentes seleccionados.');
     const pesos = await calcularPriorizacion(a.alumno_id, temasSeleccionados);
-    let seleccionadas = aplicarPriorizacion(filtradas, pesos, Math.min(numPreguntas, filtradas.length));
+    let seleccionadas = aplicarPriorizacion(filtradas, pesos, Math.min(numPreguntas, filtradas.length), document.getElementById('alumno-modo-repaso').value);
+    validarSeleccionRepasosV15(seleccionadas);
     seleccionadas = seleccionadas.slice().sort(() => Math.random() - 0.5);
     const codigo = generarCodigo();
     const cfg = {
@@ -4155,7 +4191,7 @@ function todasCorregidasV3() { return estadoPreguntasV3.length > 0 && estadoPreg
 
 function crearEstadosPreguntasV3() {
   return examenActual.preguntas.map(() => ({
-    respuesta:'', respuesta_inicial:'', cambios:0, marcada:false,
+    respuesta:'', respuesta_inicial:'', cambios:0, marcada:false, duda:false,
     corregida:false, es_correcta:null, tiempo_ms:0, visitas:0,
     fecha_primera_respuesta:'', fecha_ultima_modificacion:''
   }));
@@ -4386,6 +4422,7 @@ function renderizarExamen(){
     <div class="pregunta-texto">${textoHtmlV3(p.enunciado)}</div>
     ${crearBloqueImagenPregunta(p)}
     <div class="opciones">${opciones}</div>
+    ${examenActual.repasos_v15?`<button type="button" class="btn btn-secondary btn-duda-v15" aria-pressed="${!!st.duda}" onclick="toggleDudaV15()">${st.duda?'✓ Tengo dudas: repasar pronto':'Tengo dudas'}</button><p class="duda-help-v15">Marca esta opción si has dudado, aunque aciertes. Se guardará al finalizar y no cambia la nota.</p>`:''}
     ${crearExplicacionPracticaV3(p,st)}
     <div class="exam-actions">
       <button class="btn btn-secondary btn-prev" onclick="irPreguntaV3(${indicePreguntaActualV3-1})" ${prevDisabled?'disabled':''}>← Anterior</button>
@@ -4431,6 +4468,7 @@ function abrirRevisionFinalV3(){
   const pendientes=estadoPreguntasV3.map((s,i)=>!s.respuesta?i:null).filter(i=>i!==null);
   const sinCorregir=estadoPreguntasV3.map((s,i)=>!s.corregida?i:null).filter(i=>i!==null);
   const marcadas=estadoPreguntasV3.map((s,i)=>s.marcada?i:null).filter(i=>i!==null);
+  const dudosas=estadoPreguntasV3.map((s,i)=>s.duda?i:null).filter(i=>i!==null);
   const bloqueNums=(arr)=>arr.length?`<div class="review-number-links">${arr.map(i=>`<button onclick="cerrarRevisionFinalV3();irPreguntaV3(${i})">${i+1}</button>`).join('')}</div>`:'<p style="font-size:12px;color:#188038;">Ninguna.</p>';
   const puede=!(esPracticaV3()&&sinCorregir.length);
   const dialog=document.getElementById('exam-review-dialog');
@@ -4442,6 +4480,7 @@ function abrirRevisionFinalV3(){
     </div>
     <h3>${esPracticaV3()?'Preguntas sin comprobar':'Preguntas sin responder'}</h3>${bloqueNums(esPracticaV3()?sinCorregir:pendientes)}
     <h3 style="margin-top:13px;">Preguntas marcadas</h3>${bloqueNums(marcadas)}
+    ${examenActual.repasos_v15?`<h3 style="margin-top:13px;">Preguntas con dudas</h3>${bloqueNums(dudosas)}`:''}
     ${!puede?'<div class="msg msg-warn" style="margin-top:14px;">La práctica solo puede finalizar cuando hayas comprobado todas las preguntas.</div>':''}
     <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;margin-top:18px;">
       <button class="btn btn-secondary" onclick="cerrarRevisionFinalV3()">Volver a la actividad</button>
@@ -4509,7 +4548,8 @@ async function enviarExamen(forzado=false){
       examenCodigo+'-'+(idx+1),examenCodigo,examenActual.alumna,examenActual.alumno_id||'',p.id,p.tema,p.concepto,
       st.respuesta||'',p.respuesta_correcta,det.correcta?'SI':'NO',ahora,
       Math.round((st.tiempo_ms||0)/1000),st.visitas||0,st.cambios||0,st.respuesta_inicial||'',st.marcada?'SI':'NO',idx+1,
-      st.fecha_primera_respuesta||'',st.fecha_ultima_modificacion||'',det.numeroOpciones,det.penalizacion
+      st.fecha_primera_respuesta||'',st.fecha_ultima_modificacion||'',det.numeroOpciones,det.penalizacion,
+      ...(examenActual.repasos_v15 ? [st.duda?'SI':'NO'] : [])
     ];
   });
   try{
@@ -4601,11 +4641,11 @@ function mostrarResultados(puntuacion){
     </div>
     <div class="card"><h2>Tiempos</h2><div class="stats-row"><div class="stat-box"><div class="stat-num">${formatoTiempoV3(esPracticaV3()?totalResol:Date.now()-(temporizacionV3?.inicioMs||Date.now()))}</div><div class="stat-label">${esPracticaV3()?'Resolución efectiva':'Tiempo total'}</div></div><div class="stat-box"><div class="stat-num">${formatoTiempoV3(media)}</div><div class="stat-label">Media por respuesta</div></div><div class="stat-box"><div class="stat-num">${lenta?`P${lenta.i+1}`:'—'}</div><div class="stat-label">Más lenta${lenta?' · '+formatoTiempoV3(lenta.ms):''}</div></div></div>${esPracticaV3()?'<p style="font-size:12px;color:#777;">La lectura de las explicaciones no se ha incluido en el tiempo de resolución.</p>':''}</div>`;
   if(politicaPermiteRevisionV3()){
-    html+=`<div class="card"><h2>Revisión</h2><div class="result-filter-row"><button class="btn btn-secondary btn-sm active" onclick="filtrarRevisionResultadosV3('todas',this)">Todas</button><button class="btn btn-secondary btn-sm" onclick="filtrarRevisionResultadosV3('incorrectas',this)">Incorrectas</button><button class="btn btn-secondary btn-sm" onclick="filtrarRevisionResultadosV3('correctas',this)">Correctas</button><button class="btn btn-secondary btn-sm" onclick="filtrarRevisionResultadosV3('marcadas',this)">Marcadas</button></div>`;
+    html+=`<div class="card"><h2>Revisión</h2><div class="result-filter-row"><button class="btn btn-secondary btn-sm active" onclick="filtrarRevisionResultadosV3('todas',this)">Todas</button><button class="btn btn-secondary btn-sm" onclick="filtrarRevisionResultadosV3('incorrectas',this)">Incorrectas</button><button class="btn btn-secondary btn-sm" onclick="filtrarRevisionResultadosV3('correctas',this)">Correctas</button><button class="btn btn-secondary btn-sm" onclick="filtrarRevisionResultadosV3('marcadas',this)">Marcadas</button>${examenActual.repasos_v15?`<button class="btn btn-secondary btn-sm" onclick="filtrarRevisionResultadosV3('dudosas',this)">Con dudas</button>`:''}</div>`;
     examenActual.preguntas.forEach((p,idx)=>{
-      const st=estadoPreguntasV3[idx]; const det=detalles[idx]; const ok=det.correcta; const clases=`result-review-item ${ok?'correcta':'incorrecta'} ${st.marcada?'marcada':''}`;
+      const st=estadoPreguntasV3[idx]; const det=detalles[idx]; const ok=det.correcta; const clases=`result-review-item ${ok?'correcta':'incorrecta'} ${st.marcada?'marcada':''} ${st.duda?'dudosa':''}`;
       const detallePenalizacion=det.respondida&&!ok&&conPenalizacion?` · Penalización: −${formatoPenalizacionPreguntaV5(det.penalizacion)} (${det.numeroOpciones} opciones)`:'';
-      html+=`<div class="${clases}" style="margin-bottom:15px;padding-bottom:15px;border-bottom:1px solid #eee;"><div style="font-size:11px;color:#888;margin-bottom:5px;">${!st.respuesta?'⬜':ok?'✅':'❌'} P${idx+1} · ${textoHtmlV3(p.tema)} · ${textoHtmlV3(p.concepto)} · ${formatoTiempoV3(st.tiempo_ms||0)}${st.marcada?' · ⚑ Marcada':''}${detallePenalizacion}</div><div style="font-size:13px;font-weight:600;margin-bottom:9px;">${textoHtmlV3(p.enunciado)}</div>${crearBloqueImagenPregunta(p)}<div style="display:flex;flex-direction:column;gap:5px;">${letrasOpciones(p).map(l=>{const may=l.toUpperCase();let style='padding:7px 11px;border-radius:6px;font-size:12px;border:1px solid #e0e0e0;';let pre='';if(may===p.respuesta_correcta){style+='background:#e6f4ea;border-color:#188038;color:#176b32;font-weight:600;';pre='✓ ';}else if(st.respuesta===may&&!ok){style+='background:#fce8e6;border-color:#d93025;color:#a8241c;';pre='✗ ';}return`<div style="${style}">${pre}${may}) ${textoHtmlV3(p.opciones[l])}</div>`;}).join('')}</div>${detalleExplicacionResultadosV3(p)}</div>`;
+      html+=`<div class="${clases}" style="margin-bottom:15px;padding-bottom:15px;border-bottom:1px solid #eee;"><div style="font-size:11px;color:#888;margin-bottom:5px;">${!st.respuesta?'⬜':ok?'✅':'❌'} P${idx+1} · ${textoHtmlV3(p.tema)} · ${textoHtmlV3(p.concepto)} · ${formatoTiempoV3(st.tiempo_ms||0)}${st.marcada?' · ⚑ Marcada':''}${st.duda?' · Tengo dudas':''}${detallePenalizacion}</div><div style="font-size:13px;font-weight:600;margin-bottom:9px;">${textoHtmlV3(p.enunciado)}</div>${crearBloqueImagenPregunta(p)}<div style="display:flex;flex-direction:column;gap:5px;">${letrasOpciones(p).map(l=>{const may=l.toUpperCase();let style='padding:7px 11px;border-radius:6px;font-size:12px;border:1px solid #e0e0e0;';let pre='';if(may===p.respuesta_correcta){style+='background:#e6f4ea;border-color:#188038;color:#176b32;font-weight:600;';pre='✓ ';}else if(st.respuesta===may&&!ok){style+='background:#fce8e6;border-color:#d93025;color:#a8241c;';pre='✗ ';}return`<div style="${style}">${pre}${may}) ${textoHtmlV3(p.opciones[l])}</div>`;}).join('')}</div>${detalleExplicacionResultadosV3(p)}</div>`;
     }); html+='</div>';
   } else {
     const pol=String(examenActual?.politica_explicaciones||'').toUpperCase();
@@ -4616,7 +4656,7 @@ function mostrarResultados(puntuacion){
 }
 function filtrarRevisionResultadosV3(tipo,btn){
   document.querySelectorAll('.result-filter-row .btn').forEach(b=>b.classList.remove('active'));btn?.classList.add('active');
-  document.querySelectorAll('.result-review-item').forEach(el=>{el.hidden=tipo!=='todas'&&!el.classList.contains(tipo==='incorrectas'?'incorrecta':tipo==='correctas'?'correcta':'marcada');});
+  document.querySelectorAll('.result-review-item').forEach(el=>{el.hidden=tipo!=='todas'&&!el.classList.contains(tipo==='incorrectas'?'incorrecta':tipo==='correctas'?'correcta':tipo==='dudosas'?'dudosa':'marcada');});
 }
 
 function salirAlumno(){
@@ -4628,9 +4668,9 @@ function volverTrasResultados(){detenerCronometrosV3();examenActual=null;estadoP
 function irA(id){
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
   document.getElementById(id)?.classList.add('active'); window.scrollTo(0,0);
-  if(id==='screen-generar-examen'&&asignaturaActual){initTemasGrid();cargarAlumnosDesdeMaestroPanel();setTimeout(actualizarControlesActividadProfesorV3,30);}
+  if(id==='screen-generar-examen'&&asignaturaActual){controlesRepasosV15(false);initTemasGrid();cargarAlumnosDesdeMaestroPanel();setTimeout(actualizarControlesActividadProfesorV3,30);}
   if(id==='screen-metricas'&&asignaturaActual){const sel=document.getElementById('metricas-alumno-select');if(!sel||!sel.options.length||sel.options.length<=1)cargarAlumnosDesdeMaestroPanel();}
-  if(id==='screen-alumno-generar'&&asignaturaActual){initAlumnoTemasGrid();setTimeout(()=>seleccionarTipoActividadAlumnoV3(tipoActividadAlumnoV3),30);}
+  if(id==='screen-alumno-generar'&&asignaturaActual){controlesRepasosV15(true);initAlumnoTemasGrid();setTimeout(()=>seleccionarTipoActividadAlumnoV3(tipoActividadAlumnoV3),30);}
   if(id==='screen-config-maestro')abrirConfigMaestro();
 }
 
@@ -5926,6 +5966,95 @@ async function solicitarBancoV14(params, banco = asignaturaActual) {
   }
   return data;
 }
+
+// V15: repaso por pregunta. Los demás bancos conservan su priorización anterior.
+function usaRepasosV15() { return asignaturaActual?.nombre === 'MIR'; }
+
+function barajarV15(listado) {
+  const copia = listado.slice();
+  for (let i=copia.length-1;i>0;i--) { const j=Math.floor(Math.random()*(i+1)); [copia[i],copia[j]]=[copia[j],copia[i]]; }
+  return copia;
+}
+
+function seleccionarRepasosV15(preguntas, datos, numero, modo='recomendado') {
+  const unicas = [...new Map(preguntas.map(p=>[String(p.id),p])).values()];
+  if (modo === 'libre') return barajarV15(unicas).slice(0,numero);
+  const ahora = Date.parse(datos.ahora);
+  if (!Number.isFinite(ahora)) throw new Error('El banco no devolvió una fecha válida para los repasos.');
+  const estados = new Map(datos.items.map(s=>[String(s.pregunta_id),s]));
+  const pendientes=[], nuevas=[];
+  for (const q of unicas) {
+    const st=estados.get(String(q.id));
+    if (!st) throw new Error('El banco ha cambiado. Recarga la página antes de generar la actividad.');
+    if (st.estado==='nueva') nuevas.push(q);
+    else if (Date.parse(st.proximo_repaso)<=ahora) pendientes.push(q);
+  }
+  const prioridad={fallada:0,blanco:0,dudosa:1,correcta:2};
+  const ordenadas=barajarV15(pendientes).sort((a,b)=>{
+    const x=estados.get(String(a.id)),y=estados.get(String(b.id));
+    return prioridad[x.ultimo_resultado]-prioridad[y.ultimo_resultado] || Date.parse(x.proximo_repaso)-Date.parse(y.proximo_repaso);
+  });
+  return [...ordenadas,...(modo==='pendientes'?[]:barajarV15(nuevas))].slice(0,numero);
+}
+
+function validarSeleccionRepasosV15(seleccionadas) {
+  if (!seleccionadas.length) throw new Error('No hay preguntas disponibles para este tipo de sesión y los filtros elegidos. Puedes seleccionar «Práctica libre» para practicar antes del próximo repaso.');
+}
+
+function toggleDudaV15() {
+  const st=estadoActualV3();
+  if (!st || !examenActual?.repasos_v15 || examenEntregandoV3) return;
+  st.duda=!st.duda;
+  renderizarExamen(); guardarEstadoLocalV3(true);
+}
+
+function controlesRepasosV15(alumno) {
+  const pref=alumno?'alumno-':'prof-';
+  const visible=usaRepasosV15();
+  document.getElementById(pref+'repasos-v15').hidden=!visible;
+  const titulo=document.getElementById(pref+'contenidos-v15');
+  if(titulo) titulo.textContent=visible?'Asignaturas a incluir':'Temas a incluir';
+}
+
+function seleccionarTodosV15(alumno,valor) {
+  const grid=alumno?'alumno-temas-grid':'temas-grid-examen';
+  document.querySelectorAll('#'+grid+' .tema-check').forEach(el=>el.classList.toggle('selected',valor));
+  if(alumno)actualizarMsgPriorizacionAlumno();else actualizarMsgPriorizacion();
+}
+
+async function mostrarResumenRepasosV15(alumno) {
+  controlesRepasosV15(alumno);
+  const pref=alumno?'alumno-':'prof-';
+  const msg=document.getElementById(alumno?'alumno-msg-priorizacion':'msg-priorizacion');
+  const alumnoId=alumno?alumnoVerificado?.alumno_id:document.getElementById('examen-alumno').value;
+  const temas=[...document.querySelectorAll('#'+(alumno?'alumno-temas-grid':'temas-grid-examen')+' .selected')].map(e=>e.dataset.tema);
+  const fuentes=[...document.querySelectorAll('#'+(alumno?'alumno-fuentes-grid':'fuentes-grid')+' .selected')].map(e=>e.dataset.fuente);
+  const peticion=Symbol(); msg._repasoPeticion=peticion;
+  msg.style.display='block'; msg.className='msg msg-info';
+  if(!alumnoId || !temas.length || !fuentes.length) {msg.textContent='Selecciona '+(!alumnoId?'un alumno, ':'')+'las asignaturas y las fuentes para consultar los repasos.';return;}
+  const origen=asignaturaActual.scriptUrl;
+  msg.textContent='Consultando tus repasos…';
+  try {
+    const datos=await api({action:'getRepasos',alumno_id:alumnoId});
+    if(msg._repasoPeticion!==peticion || asignaturaActual?.scriptUrl!==origen)return;
+    if(datos.version!==15 || !Array.isArray(datos.items))throw new Error('Actualiza la implementación del banco MIR a V15.');
+    const items=datos.items.filter(s=>temas.includes(s.tema)&&fuentes.includes(s.fuente));
+    const pendientes=items.filter(s=>s.estado==='pendiente').length;
+    const nuevas=items.filter(s=>s.estado==='nueva').length;
+    const futuras=items.filter(s=>s.estado==='programada');
+    const siguiente=futuras.map(s=>Date.parse(s.proximo_repaso)).filter(Number.isFinite).sort((a,b)=>a-b)[0];
+    const modo=document.getElementById(pref+'modo-repaso').value;
+    const disponibles=modo==='libre'?items.length:pendientes+(modo==='pendientes'?0:nuevas);
+    msg.textContent=`${pendientes} repasos pendientes · ${nuevas} nuevas · ${futuras.length} programadas. Esta sesión incluirá hasta ${disponibles} preguntas de los contenidos elegidos.`+(siguiente?' Próximo repaso: '+new Date(siguiente).toLocaleString('es-ES')+'.':'');
+  } catch(e) {
+    if(msg._repasoPeticion!==peticion || asignaturaActual?.scriptUrl!==origen)return;
+    msg.className='msg msg-warn';msg.textContent='No se pudo consultar el calendario: '+e.message+' Si todavía está desplegada V14, actualiza el App Script del banco MIR a V15.';
+  }
+}
+
+document.addEventListener('change',e=>{
+  if(e.target.id==='examen-alumno')actualizarMsgPriorizacion();
+});
 
 </script>
 </body>
