@@ -1355,7 +1355,7 @@ async function cargarConfigProfesorPublica() {
   [...(publico.asignaturas || []), ...locales].forEach((a, idx) => {
     if (!a || !a.nombre || !a.scriptUrl) return;
     const idBase = a.id || ('PUB-' + btoa(unescape(encodeURIComponent(a.nombre))).replace(/=+$/,'').slice(0,12));
-    porNombre.set(a.nombre, { id: idBase, nombre: a.nombre, sheetId: a.sheetId || '', scriptUrl: a.scriptUrl });
+    porNombre.set(a.nombre, { id: idBase, nombre: a.nombre, sheetId: a.sheetId || '', scriptUrl: a.scriptUrl, seguridad:a.seguridad || '' });
   });
   const fusionadas = [...porNombre.values()];
   if (fusionadas.length) {
@@ -1444,7 +1444,7 @@ function mostrarJsonPublico() {
   // Versión pública: sin id interno, incluye maestroUrl global
   const publico = {
     maestroUrl: MAESTRO_URL || '',
-    asignaturas: asignaturas.map(a => ({ nombre: a.nombre, sheetId: a.sheetId || '', scriptUrl: a.scriptUrl }))
+    asignaturas: asignaturas.map(a => ({ nombre: a.nombre, sheetId: a.sheetId || '', scriptUrl: a.scriptUrl, ...(a.seguridad ? {seguridad:a.seguridad} : {}) }))
   };
   const json = JSON.stringify(publico, null, 2);
   const wrap = document.getElementById('json-publico-wrap');
@@ -1508,6 +1508,8 @@ async function loginProfesor() {
     if (!resultado.token) throw new Error('Actualiza la implementación del maestro a V13.');
     sessionStorage.setItem('profesor_v13_' + MAESTRO_URL, resultado.token);
     localStorage.removeItem(PROFESOR_KEY);
+    alumnoVerificado = null;
+    alumnoAccesoActual = null;
     renderizarListaAsignaturas();
     irA('screen-asignaturas');
   } catch (e) {
@@ -1528,6 +1530,7 @@ let configPublicaEnCursoV11 = null;
 const lecturasEnCursoV11 = new Map();
 const lecturasCacheV11 = new Map();
 async function api(params) {
+  if (bancoConSesionV14()) return solicitarBancoV14(params);
   const urlBase = asignaturaActual?.scriptUrl;
   if (!urlBase) throw new Error('No hay una asignatura seleccionada.');
   const url = urlBase + '?' + new URLSearchParams(params).toString();
@@ -1592,6 +1595,7 @@ async function solicitarJsonActividadV10(url, accion, opciones) {
 
 // Divide por longitud real de URL, no solo por número de preguntas.
 async function guardarBloqueActividadV10(accion, campo, filas, extras={}) {
+  if (bancoConSesionV14()) return solicitarBancoV14({action:accion,...extras,[campo]:JSON.stringify(filas)});
   const params = {action:accion, ...extras, [campo]:JSON.stringify(filas)};
   const url = asignaturaActual.scriptUrl + '?' + new URLSearchParams(params);
   if (url.length > 7500 && filas.length > 1) {
@@ -2047,7 +2051,7 @@ function letrasOpciones(p) {
 
 async function cargarPreguntas() {
   const key = asignaturaActual ? asignaturaActual.scriptUrl : '';
-  if (_cachePreguntasPorAsig[key] && _cachePreguntasPorAsig[key].length > 0) {
+  if (!bancoConSesionV14() && _cachePreguntasPorAsig[key] && _cachePreguntasPorAsig[key].length > 0) {
     todasLasPreguntas = _cachePreguntasPorAsig[key];
     return todasLasPreguntas;
   }
@@ -2068,7 +2072,7 @@ async function cargarPreguntas() {
         letras.includes(p.respuesta_correcta.toLowerCase());
     });
 
-  _cachePreguntasPorAsig[key] = preguntas;
+  if (!bancoConSesionV14()) _cachePreguntasPorAsig[key] = preguntas;
   if (asignaturaActual?.scriptUrl === key) todasLasPreguntas = preguntas;
   return preguntas;
 }
@@ -4678,6 +4682,7 @@ async function pedirYValidarClaveEditorV7(forzar=false) {
 }
 
 async function postBackendV7(params) {
+  if (bancoConSesionV14()) return solicitarBancoV14(params);
   if (!asignaturaActual?.scriptUrl) {
     throw new Error('No hay una asignatura activa.');
   }
@@ -5878,6 +5883,34 @@ async function cerrarSesionProfesorV13() {
   localStorage.removeItem(PROFESOR_KEY);
   irA('screen-inicio');
   await cierre;
+}
+
+function bancoConSesionV14() {
+  return asignaturaActual?.nombre === 'MIR' || asignaturaActual?.seguridad === 'sesion-v14';
+}
+
+async function solicitarBancoV14(params) {
+  if (!asignaturaActual?.scriptUrl) throw new Error('Selecciona un banco.');
+  const bancosConocidos = [...(window._asignaturasPublicas || []), ...cargarAsignaturas()];
+  if (!bancosConocidos.some(b => b.nombre === asignaturaActual.nombre && b.scriptUrl === asignaturaActual.scriptUrl)) {
+    throw new Error('La dirección del banco no coincide con la configuración. Entra desde el menú principal.');
+  }
+  const token = alumnoVerificado
+    ? alumnoVerificado.session_token
+    : sessionStorage.getItem('profesor_v13_' + MAESTRO_URL);
+  if (!token) throw new Error('Vuelve a entrar con tu PIN o con tu contraseña para activar la sesión del banco.');
+  const response = await fetch(asignaturaActual.scriptUrl, {
+    method:'POST', body:new URLSearchParams({...params,session_token:token}),
+    redirect:'follow',cache:'no-store'
+  });
+  if (!response.ok) throw new Error('El banco respondió HTTP ' + response.status + '.');
+  let data;
+  try { data=await response.json(); }
+  catch(e) { throw new Error('El banco no devolvió datos válidos. Comprueba su implementación.'); }
+  if (!data || data.error || data.ok===false) {
+    throw new Error(data?.error || 'No se pudo confirmar la operación del banco.');
+  }
+  return data;
 }
 
 </script>
