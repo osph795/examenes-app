@@ -365,8 +365,29 @@
   .duda-help-v15 { font-size:12px; color:#666; margin:7px 0 16px; }
   [hidden] { display:none !important; }
 </style>
-</head>
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="apple-touch-icon" href="./icons/icon-192.png">
+<meta name="theme-color" content="#164e63">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Mis tests">
+<style>
+#barra-v17{padding:10px 16px;background:#e6f3f6;border-bottom:1px solid #a9cdd7;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+#estado-v17{flex-basis:100%;font-size:13px;line-height:1.5;color:#164e63}
+#barra-v17 button{min-height:44px} body{padding-bottom:env(safe-area-inset-bottom)}
+</style></head>
 <body>
+<div id="barra-v17" aria-label="Aplicación móvil">
+<button class="btn btn-secondary btn-sm" onclick="instalarV17()">Instalar</button>
+<button class="btn btn-secondary btn-sm" onclick="mostrarDescargasV17()">Descargas</button>
+<button class="btn btn-secondary btn-sm" onclick="descargarPracticaV17()">Descargar práctica</button>
+<button class="btn btn-secondary btn-sm" onclick="sincronizarV17()">Sincronizar entregas</button>
+<p id="estado-v17" role="status" aria-live="polite">Móvil · V17</p>
+</div>
+<div id="screen-descargas-v17" class="screen"><div class="inner">
+<h1>Prácticas descargadas</h1>
+<p style="margin:16px 0">Disponibles en este dispositivo sin iniciar sesión. Para entregar al banco, vuelve a entrar con conexión en tu cuenta y asignatura. No borres los datos del navegador mientras haya entregas pendientes.</p>
+<button class="btn btn-secondary" onclick="salirLocalV17()">Volver al acceso / Sincronizar con mi cuenta</button>
+<div id="lista-descargas-v17" style="margin-top:16px"></div></div></div>
 
 <!-- ══ INICIO ══ -->
 <div id="screen-inicio" class="screen active">
@@ -1554,6 +1575,7 @@ let configPublicaEnCursoV11 = null;
 const lecturasEnCursoV11 = new Map();
 const lecturasCacheV11 = new Map();
 async function api(params) {
+  if(typeof modoLocalV17!=='undefined'&&modoLocalV17)throw new Error('Estás en una copia local. Inicia sesión con conexión para acceder al banco.');
   if (bancoConSesionV14()) return solicitarBancoV14(params);
   const urlBase = asignaturaActual?.scriptUrl;
   if (!urlBase) throw new Error('No hay una asignatura seleccionada.');
@@ -4243,6 +4265,7 @@ async function iniciarExamen(codigo, origen=null) {
     const data=await api({action:'getExamen',codigo});
     if(data.error) throw new Error(data.detalle||data.error);
     if(String(data.completado||'NO').toUpperCase()==='SI') {
+      localStorage.removeItem(claveDescargaV17(codigo,data.alumno_id,asignaturaActual.scriptUrl));
       localStorage.removeItem(AUTOGUARDADO_PREFIJO_V3 + codigo);
       localStorage.removeItem(claveActividadV16(codigo,data.alumno_id));
       entregaPendienteV16=null;examenActual=null;examenCodigo=null;estadoPreguntasV3=[];temporizacionV3=null;examenEntregandoV3=false;
@@ -4673,6 +4696,7 @@ function filtrarRevisionResultadosV3(tipo,btn){
 }
 
 function salirAlumno(){
+  modoLocalV17=false;
   if(examenEntregandoV3 && entregaPendienteV16){alert('Espera a que termine el intento de entrega.');return;}
   if(examenActual&&!examenEntregandoV3&&!guardarEstadoLocalV3(false)){alert('No se pudo guardar una copia local. Mantén abierta la actividad.');return;}
   if(examenActual&&!examenEntregandoV3){actualizarAcumuladosV3();guardarEstadoLocalV3(false);}
@@ -4681,9 +4705,10 @@ function salirAlumno(){
 function volverTrasResultados(){entregaPendienteV16=null;ultimoErrorEntregaV16='';detenerCronometrosV3();examenActual=null;estadoPreguntasV3=[];temporizacionV3=null;examenCodigo=null;if(alumnoVerificado)irA('screen-alumno-menu');else irA('screen-inicio');}
 
 function irA(id){
+  if(typeof modoLocalV17!=='undefined'&&modoLocalV17&&id==='screen-alumno-menu'){mostrarDescargasV17();return;}
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
   document.getElementById(id)?.classList.add('active'); window.scrollTo(0,0);
-  if(id==='screen-alumno-menu'&&asignaturaActual)cargarPendientesV16();
+  if(id==='screen-alumno-menu'&&asignaturaActual){cargarPendientesV16();sincronizarV17();}
   if(id==='screen-generar-examen'&&asignaturaActual){controlesRepasosV15(false);initTemasGrid();cargarAlumnosDesdeMaestroPanel();setTimeout(actualizarControlesActividadProfesorV3,30);}
   if(id==='screen-metricas'&&asignaturaActual){const sel=document.getElementById('metricas-alumno-select');if(!sel||!sel.options.length||sel.options.length<=1)cargarAlumnosDesdeMaestroPanel();}
   if(id==='screen-alumno-generar'&&asignaturaActual){controlesRepasosV15(true);initAlumnoTemasGrid();setTimeout(()=>seleccionarTipoActividadAlumnoV3(tipoActividadAlumnoV3),30);}
@@ -6093,7 +6118,7 @@ function guardarEstadoLocalV3(mostrar=false){
   try {
     const dato={version:16,codigo:examenCodigo,alumno_id:String(examenActual.alumno_id||''),maestro:MAESTRO_URL,banco:asignaturaActual.scriptUrl,
       ids:examenActual.preguntas.map(p=>String(p.id)),indice:indicePreguntaActualV3,estados:estadoPreguntasV3,
-      temporizacion:{...temporizacionV3,ultimoTick:Date.now()},entrega:entregaPendienteV16,guardadoEn:new Date().toISOString()};
+      offline_v17:modoLocalV17||!!localStorage.getItem(claveDescargaV17(examenCodigo,examenActual.alumno_id,asignaturaActual.scriptUrl)),temporizacion:{...temporizacionV3,ultimoTick:Date.now()},entrega:entregaPendienteV16,guardadoEn:new Date().toISOString()};
     localStorage.setItem(claveProgresoV3(),JSON.stringify(dato));
     if(mostrar)mostrarEstadoGuardadoV3('Guardado en este navegador ✓');
     return true;
@@ -6194,6 +6219,12 @@ async function enviarExamen(forzado=false){
     cerrarRevisionFinalV3();actualizarAcumuladosV3();entregaPendienteV16=prepararEntregaV16();
     if(!guardarEstadoLocalV3(false))alert('No hay copia persistente en este navegador. Mantén la página abierta hasta confirmar el guardado.');
   }
+  if(modoLocalV17||navigator.onLine===false){
+    detenerCronometrosV3();
+    if(!guardarEstadoLocalV3(false)){alert('No se pudo guardar la entrega en este dispositivo. Mantén la página abierta.');return;}
+    ultimoErrorEntregaV16='Guardada en el dispositivo, pendiente de sincronizar. Pausa e inicia sesión con conexión en esta asignatura.';
+    actualizarEntregaV16();avisoV17(ultimoErrorEntregaV16);return;
+  }
   detenerCronometrosV3();examenEntregandoV3=true;ultimoErrorEntregaV16='';
   irA('screen-loading');document.getElementById('loading-text').textContent='Guardando y confirmando la entrega…';
   let fase='guardar respuestas';
@@ -6212,6 +6243,7 @@ async function enviarExamen(forzado=false){
       if(!fin?.ok)throw new Error(fin?.detalle||fin?.error||'No se confirmó la finalización.');
     }
     localStorage.removeItem(claveProgresoV3());localStorage.removeItem(AUTOGUARDADO_PREFIJO_V3+examenCodigo);
+    localStorage.removeItem(claveDescargaV17(examenCodigo,examenActual.alumno_id,asignaturaActual.scriptUrl));
     entregaPendienteV16=null;ultimoErrorEntregaV16='';mostrarResultados(calcularPuntuacionV5());
   }catch(e){
     examenEntregandoV3=false;ultimoErrorEntregaV16='Error al '+fase+': '+(e.message||e);
@@ -6221,6 +6253,141 @@ async function enviarExamen(forzado=false){
   }
 }
 window.addEventListener('online',()=>{if(entregaPendienteV16&&!examenEntregandoV3){ultimoErrorEntregaV16='La conexión ha vuelto. Pulsa Reintentar entrega.';actualizarEntregaV16();}});
+
+</script>
+<script>
+/* V17: descargas explícitas; las sesiones y las API nunca se guardan en caché. */
+let modoLocalV17=false, sincronizandoV17=false, descargaV17=false, instalacionV17=null;
+const PREFIJO_V17='descarga_v17_';
+function avisoV17(texto){document.getElementById('estado-v17').textContent=texto;}
+function claveDescargaV17(codigo,alumno,banco){return PREFIJO_V17+JSON.stringify([MAESTRO_URL,banco,String(alumno),String(codigo)]);}
+function descargasV17(){
+  const out=[];
+  for(let i=0;i<localStorage.length;i++){
+    const k=localStorage.key(i);if(!k?.startsWith(PREFIJO_V17))continue;
+    try{const d=JSON.parse(localStorage.getItem(k));if(d.maestro===MAESTRO_URL)out.push({k,d});}catch(e){}
+  }
+  return out;
+}
+async function imagenLocalV17(url){
+  if(!url||url.startsWith('data:'))return url;
+  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),25000);
+  try{
+    const r=await fetch(new URL(url,window.location.href),{signal:controller.signal,credentials:'omit'});
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    const b=await r.blob();if(!b.type.startsWith('image/'))throw new Error('No es una imagen');
+    return await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=reject;reader.readAsDataURL(b);});
+  }finally{clearTimeout(timer);}
+}
+async function descargarPracticaV17(){
+  if(descargaV17||examenEntregandoV3)return;
+  if(modoLocalV17||!alumnoVerificado?.session_token||alumnoAccesoActual?.modo?.toLowerCase()!=='autonomo'||!examenActual||!esPracticaV3()||!examenActual.entrega_v16||entregaPendienteV16){
+    alert('Abre con conexión una práctica propia en modo autónomo, en un banco V16, antes de descargarla.');return;
+  }
+  if(!confirm('La práctica y sus respuestas quedarán disponibles sin iniciar sesión en este dispositivo. Descárgala solo en un dispositivo personal. ¿Continuar?'))return;
+  descargaV17=true;
+  const codigo=examenCodigo,alumno=String(alumnoVerificado.alumno_id),banco={...asignaturaActual};
+  try{
+    if(!('serviceWorker' in navigator))throw new Error('Este navegador no permite preparar la aplicación sin conexión.');
+    const reg=await navigator.serviceWorker.getRegistration();
+    if(!reg?.active)throw new Error('La aplicación todavía se está instalando. Espera unos segundos y vuelve a intentarlo.');
+    avisoV17('Descargando práctica e imágenes…');
+    const actividad=JSON.parse(JSON.stringify(examenActual));
+    const imagenes=new Map();
+    async function convertir(url){if(!imagenes.has(url))imagenes.set(url,await imagenLocalV17(url));return imagenes.get(url);}
+    for(const p of actividad.preguntas){
+      if(p.imagen_url)p.imagen_url=await convertir(p.imagen_url);
+      for(const key of Object.keys(p)){
+        if(typeof p[key]!=='string'||!/<img\b/i.test(p[key]))continue;
+        const doc=new DOMParser().parseFromString(p[key],'text/html');
+        for(const img of doc.querySelectorAll('img')){img.src=await convertir(img.getAttribute('src'));img.removeAttribute('srcset');}
+        p[key]=doc.body.innerHTML;
+      }
+    }
+    if(codigo!==examenCodigo||alumno!==String(alumnoVerificado?.alumno_id)||banco.scriptUrl!==asignaturaActual?.scriptUrl)throw new Error('La actividad ha cambiado. Vuelve a descargarla.');
+    if(!guardarEstadoLocalV3(false))throw new Error('No se pudo guardar el progreso.');
+    const dato={maestro:MAESTRO_URL,banco:{nombre:banco.nombre,scriptUrl:banco.scriptUrl,seguridad:banco.seguridad},codigo,alumno,actividad,fecha:new Date().toISOString()};
+    localStorage.setItem(claveDescargaV17(codigo,alumno,banco.scriptUrl),JSON.stringify(dato));
+    navigator.storage?.persist?.().catch(()=>{});
+    avisoV17('Práctica descargada con sus imágenes. Disponible en «Descargas».');
+  }catch(e){avisoV17('No se completó la descarga: '+e.message);alert('No se completó la descarga. '+e.message);}
+  finally{descargaV17=false;}
+}
+function mostrarDescargasV17(){
+  if(sincronizandoV17){alert('Espera a que termine la sincronización.');return;}
+  if(examenActual){alert('Pulsa «Pausar» antes de abrir otra actividad.');return;}
+  irA('screen-descargas-v17');
+  const lista=document.getElementById('lista-descargas-v17');lista.textContent='';
+  try{
+    const registros=descargasV17();
+    if(!registros.length)lista.textContent='No hay prácticas descargadas. Con conexión, inicia una práctica y pulsa «Descargar práctica». ';
+    for(const {k,d}of registros){
+      const box=document.createElement('div');box.className='card';
+      const titulo=document.createElement('p');titulo.textContent=d.banco.nombre+' · '+d.codigo+' · '+(d.actividad.alumna||d.alumno);box.appendChild(titulo);
+      const abrir=document.createElement('button');abrir.className='btn btn-primary';abrir.textContent='Abrir copia local';abrir.onclick=()=>abrirLocalV17(d);box.appendChild(abrir);
+      const quitar=document.createElement('button');quitar.className='btn btn-secondary';quitar.textContent='Quitar descarga';
+      quitar.onclick=()=>{if(confirm('¿Quitar las preguntas descargadas? Tu progreso y las entregas pendientes se conservarán.')){localStorage.removeItem(k);mostrarDescargasV17();}};box.appendChild(quitar);lista.appendChild(box);
+    }
+  }catch(e){lista.textContent='No se pudo leer el almacenamiento del dispositivo: '+e.message;}
+}
+function abrirLocalV17(d){
+  if(sincronizandoV17||examenActual||examenEntregandoV3&&entregaPendienteV16)return;
+  if(d.maestro!==MAESTRO_URL||d.actividad.tipo_actividad!=='PRACTICA'||!d.actividad.entrega_v16)throw new Error('Descarga no compatible.');
+  // Esta identidad local NO es una sesión: api() bloquea todas sus solicitudes.
+  modoLocalV17=true;asignaturaActual=d.banco;alumnoVerificado={alumno_id:d.alumno,nombre:d.actividad.alumna,local_v17:true};alumnoAccesoActual=null;
+  examenActual=JSON.parse(JSON.stringify(d.actividad));examenCodigo=d.codigo;examenEntregandoV3=false;entregaPendienteV16=null;ultimoErrorEntregaV16='';
+  respuestasAlumna={};indicePreguntaActualV3=0;estadoPreguntasV3=crearEstadosPreguntasV3();limiteActivadoV3=false;revisionAbiertaV3=false;
+  const ahora=Date.now();temporizacionV3={inicioMs:ahora,ultimoTick:ahora,resolucionMs:0,visibleMs:0,fueraMs:0,visibleActual:!document.hidden};
+  restaurarEstadoLocalV3();aplicarRespuestasServidorV16(examenActual.respuestas_guardadas);
+  irA('screen-examen');renderizarExamen();iniciarCronometrosV3();guardarEstadoLocalV3(false);
+  avisoV17('Copia local. Para sincronizar, pausa e inicia sesión con conexión en esta misma asignatura.');
+}
+function salirLocalV17(){salirAlumno();modoLocalV17=false;avisoV17('Inicia sesión con conexión para sincronizar tus entregas pendientes.');}
+async function sincronizarV17(){
+  if(sincronizandoV17)return;
+  if(examenActual){avisoV17('Pausa la actividad antes de sincronizar.');return;}
+  if(modoLocalV17){avisoV17('Vuelve al acceso e inicia sesión con conexión para sincronizar.');return;}
+  if(!alumnoVerificado?.session_token||!asignaturaActual||navigator.onLine===false){avisoV17('Para sincronizar, inicia sesión con conexión y selecciona la asignatura.');return;}
+  const alumno=String(alumnoVerificado.alumno_id),banco=asignaturaActual.scriptUrl;
+  sincronizandoV17=true;let total=0;
+  try{
+    const pendientes=[];
+    for(let i=0;i<localStorage.length;i++){
+      const key=localStorage.key(i);if(!key?.startsWith('actividad_v16_'))continue;
+      try{const d=JSON.parse(localStorage.getItem(key));
+        if(d.maestro===MAESTRO_URL&&d.banco===banco&&d.alumno_id===alumno&&d.entrega&&(d.offline_v17||localStorage.getItem(claveDescargaV17(d.codigo,alumno,banco))))pendientes.push({key,d,raw:localStorage.getItem(key)});
+      }catch(e){}
+    }
+    for(const {key,d,raw}of pendientes){
+      if(examenActual||modoLocalV17||String(alumnoVerificado?.alumno_id)!==alumno||asignaturaActual?.scriptUrl!==banco)break;
+      avisoV17('Sincronizando '+d.codigo+'…');
+      const r=await api({action:'entregarActividadV16',codigo:d.codigo,entrega:JSON.stringify(d.entrega)});
+      if(!r?.ok)throw new Error(r?.error||'No se confirmó la entrega.');
+      if(localStorage.getItem(key)===raw)localStorage.removeItem(key);
+      localStorage.removeItem(claveDescargaV17(d.codigo,alumno,banco));total++;
+    }
+    avisoV17(total?'Entregas sincronizadas: '+total+'. Consulta el historial.':'No hay entregas descargadas pendientes en esta asignatura.');
+    if(total&&!examenActual)await cargarPendientesV16();
+  }catch(e){avisoV17('Entrega pendiente; se conserva en este dispositivo. '+e.message);}
+  finally{sincronizandoV17=false;}
+}
+async function instalarV17(){
+  if(instalacionV17){await instalacionV17.prompt();await instalacionV17.userChoice;instalacionV17=null;}
+  else alert('iPhone/iPad: abre esta página en Safari → Compartir → Añadir a pantalla de inicio. Android: menú del navegador → Instalar aplicación o Añadir a pantalla de inicio.');
+}
+window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();instalacionV17=e;});
+window.addEventListener('online',()=>{if(!examenActual)sincronizarV17();else avisoV17('Conexión recuperada. Si trabajas en una copia local, pausa e inicia sesión para sincronizar.');});
+window.addEventListener('offline',()=>avisoV17('Sin conexión. Puedes trabajar con las prácticas descargadas.'));
+window.addEventListener('load',async()=>{
+  if(!('serviceWorker' in navigator)){avisoV17('Este navegador no permite preparar el acceso sin conexión.');return;}
+  try{
+    const reg=await navigator.serviceWorker.register('./sw.js',{scope:'./',updateViaCache:'none'});
+    const actualizar=()=>{if(reg.waiting)avisoV17('Hay una actualización preparada. Pausa tu actividad y cierra todas las ventanas de la aplicación para aplicarla al volver a abrir.');};
+    actualizar();reg.addEventListener('updatefound',()=>reg.installing?.addEventListener('statechange',actualizar));
+    await navigator.serviceWorker.ready;
+    if(!reg.waiting)avisoV17('Acceso sin conexión preparado. Descarga una práctica antes de desconectarte.');
+  }catch(e){avisoV17('No se pudo preparar el acceso sin conexión: '+e.message);}
+});
 
 </script>
 </body>
