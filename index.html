@@ -381,7 +381,7 @@
 <button class="btn btn-secondary btn-sm" onclick="mostrarDescargasV17()">Descargas</button>
 <button class="btn btn-secondary btn-sm" onclick="descargarPracticaV17()">Descargar práctica</button>
 <button class="btn btn-secondary btn-sm" onclick="sincronizarV17()">Sincronizar entregas</button>
-<p id="estado-v17" role="status" aria-live="polite">Móvil · V17.1</p>
+<p id="estado-v17" role="status" aria-live="polite">Móvil · V17.2</p>
 </div>
 <div id="screen-descargas-v17" class="screen"><div class="inner">
 <h1>Prácticas descargadas</h1>
@@ -2149,12 +2149,12 @@ function crearBloqueExplicacionPregunta(p) {
   if (!corta && !larga) return '';
 
   let html = '<div class="msg msg-info" style="margin-top:10px;">';
-  html += '<strong>Explicación:</strong><br>' + (corta || larga);
+  html += '<strong>Explicación:</strong><br>' + textoHtmlV3(corta || larga);
   if (larga && corta && larga !== corta) {
-    html += '<div style="margin-top:8px;font-size:12px;line-height:1.5;color:#444;">' + larga + '</div>';
+    html += '<div style="margin-top:8px;font-size:12px;line-height:1.5;color:#444;">' + textoHtmlV3(larga) + '</div>';
   }
   if (estado) {
-    html += '<div style="margin-top:6px;font-size:11px;color:#888;">Estado: ' + estado + '</div>';
+    html += '<div style="margin-top:6px;font-size:11px;color:#888;">Estado: ' + textoHtmlV3(estado) + '</div>';
   }
   html += '</div>';
   return html;
@@ -2668,7 +2668,7 @@ function renderizarExamen() {
     div.className = 'pregunta-card';
     div.innerHTML = `
       <div class="pregunta-num">Pregunta ${idx+1} · ${p.tema} · ${p.concepto}</div>
-      <div class="pregunta-texto">${p.enunciado}</div>
+      <div class="pregunta-texto">${textoHtmlV3(p.enunciado)}</div>
       <div class="opciones">
         ${letrasOpciones(p).map(l => `
           <div class="opcion" id="op-${idx}-${l}" onclick="seleccionarOpcion(${idx},'${l}')">
@@ -2794,7 +2794,7 @@ function mostrarResultados(correctas, total) {
     const icono=!r?'⬜':ok?'✅':'❌';
     html+=`<div style="margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid #f0f0f0;">
       <div style="font-size:11px;color:#888;margin-bottom:4px;">${icono} P${idx+1} · ${p.tema} · ${p.concepto}</div>
-      <div style="font-size:13px;font-weight:500;margin-bottom:9px;">${p.enunciado}</div>
+      <div style="font-size:13px;font-weight:500;margin-bottom:9px;">${textoHtmlV3(p.enunciado)}</div>
       <div style="display:flex;flex-direction:column;gap:5px;">
         ${letrasOpciones(p).map(l=>{
           let s='padding:7px 11px;border-radius:6px;font-size:12px;border:1px solid #e0e0e0;';let pre='';
@@ -3300,7 +3300,7 @@ async function mostrarDetalleExamenAlumno(examen, idx, todos, porExamen) {
       const icono = !dada ? '⬜' : ok ? '✅' : '❌';
       html += `<div style="margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid #f0f0f0;">
         <div style="font-size:11px;color:#888;margin-bottom:4px;">${icono} P${i+1} · ${p.tema} · ${p.concepto}</div>
-        <div style="font-size:13px;font-weight:500;margin-bottom:9px;">${p.enunciado}</div>
+        <div style="font-size:13px;font-weight:500;margin-bottom:9px;">${textoHtmlV3(p.enunciado)}</div>
         <div style="display:flex;flex-direction:column;gap:5px;">`;
       letrasOpciones(p).forEach(l => {
         let s = 'padding:7px 11px;border-radius:6px;font-size:12px;border:1px solid #e0e0e0;';
@@ -3687,7 +3687,7 @@ async function mostrarDetalleExamen(examen, idx, todos, porExamen) {
       const icono = !dada ? '⬜' : ok ? '✅' : '❌';
       html += `<div style="margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid #f0f0f0;">
         <div style="font-size:11px;color:#888;margin-bottom:4px;">${icono} P${i+1} · ${p.tema} · ${p.concepto}</div>
-        <div style="font-size:13px;font-weight:500;margin-bottom:9px;">${p.enunciado}</div>
+        <div style="font-size:13px;font-weight:500;margin-bottom:9px;">${textoHtmlV3(p.enunciado)}</div>
         <div style="display:flex;flex-direction:column;gap:5px;">`;
       letrasOpciones(p).forEach(l => {
         let s = 'padding:7px 11px;border-radius:6px;font-size:12px;border:1px solid #e0e0e0;';
@@ -3949,7 +3949,11 @@ function escaparHtmlV3(v) {
 }
 
 function textoHtmlV3(v) {
-  return escaparHtmlV3(v).replace(/\n/g, '<br>');
+  // Escape source first: only our own formatting tags may become HTML.
+  return escaparHtmlV3(v)
+    .replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/__([^_\n]+)__/g, '<strong>$1</strong>')
+    .replace(/\r\n?|\n/g, '<br>');
 }
 
 function normalizarUrlImagenV3(v) {
