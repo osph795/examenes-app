@@ -381,7 +381,7 @@
 <button class="btn btn-secondary btn-sm" onclick="mostrarDescargasV17()">Descargas</button>
 <button class="btn btn-secondary btn-sm" onclick="descargarPracticaV17()">Descargar práctica</button>
 <button class="btn btn-secondary btn-sm" onclick="sincronizarV17()">Sincronizar entregas</button>
-<p id="estado-v17" role="status" aria-live="polite">Móvil · V17</p>
+<p id="estado-v17" role="status" aria-live="polite">Móvil · V17.1</p>
 </div>
 <div id="screen-descargas-v17" class="screen"><div class="inner">
 <h1>Prácticas descargadas</h1>
@@ -6265,7 +6265,7 @@ function descargasV17(){
   const out=[];
   for(let i=0;i<localStorage.length;i++){
     const k=localStorage.key(i);if(!k?.startsWith(PREFIJO_V17))continue;
-    try{const d=JSON.parse(localStorage.getItem(k));if(d.maestro===MAESTRO_URL)out.push({k,d});}catch(e){}
+    try{const d=JSON.parse(localStorage.getItem(k));if(!MAESTRO_URL||d.maestro===MAESTRO_URL)out.push({k,d});}catch(e){}
   }
   return out;
 }
@@ -6307,6 +6307,7 @@ async function descargarPracticaV17(){
     if(codigo!==examenCodigo||alumno!==String(alumnoVerificado?.alumno_id)||banco.scriptUrl!==asignaturaActual?.scriptUrl)throw new Error('La actividad ha cambiado. Vuelve a descargarla.');
     if(!guardarEstadoLocalV3(false))throw new Error('No se pudo guardar el progreso.');
     const dato={maestro:MAESTRO_URL,banco:{nombre:banco.nombre,scriptUrl:banco.scriptUrl,seguridad:banco.seguridad},codigo,alumno,actividad,fecha:new Date().toISOString()};
+    localStorage.setItem(MAESTRO_URL_KEY,MAESTRO_URL);
     localStorage.setItem(claveDescargaV17(codigo,alumno,banco.scriptUrl),JSON.stringify(dato));
     navigator.storage?.persist?.().catch(()=>{});
     avisoV17('Práctica descargada con sus imágenes. Disponible en «Descargas».');
@@ -6332,6 +6333,7 @@ function mostrarDescargasV17(){
 }
 function abrirLocalV17(d){
   if(sincronizandoV17||examenActual||examenEntregandoV3&&entregaPendienteV16)return;
+  if(!MAESTRO_URL&&d.maestro)MAESTRO_URL=d.maestro;
   if(d.maestro!==MAESTRO_URL||d.actividad.tipo_actividad!=='PRACTICA'||!d.actividad.entrega_v16)throw new Error('Descarga no compatible.');
   // Esta identidad local NO es una sesión: api() bloquea todas sus solicitudes.
   modoLocalV17=true;asignaturaActual=d.banco;alumnoVerificado={alumno_id:d.alumno,nombre:d.actividad.alumna,local_v17:true};alumnoAccesoActual=null;
@@ -6379,6 +6381,7 @@ window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();instalacion
 window.addEventListener('online',()=>{if(!examenActual)sincronizarV17();else avisoV17('Conexión recuperada. Si trabajas en una copia local, pausa e inicia sesión para sincronizar.');});
 window.addEventListener('offline',()=>avisoV17('Sin conexión. Puedes trabajar con las prácticas descargadas.'));
 window.addEventListener('load',async()=>{
+  if(navigator.onLine===false&&!examenActual)mostrarDescargasV17();
   if(!('serviceWorker' in navigator)){avisoV17('Este navegador no permite preparar el acceso sin conexión.');return;}
   try{
     const reg=await navigator.serviceWorker.register('./sw.js',{scope:'./',updateViaCache:'none'});
