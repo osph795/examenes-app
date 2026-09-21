@@ -1102,6 +1102,7 @@
     <div class="card">
       <h2>¿Qué quieres hacer?</h2>
       <div class="grid-2" id="alumno-menu-opciones" style="margin-top:8px;"></div>
+      <h2 style="margin-top:22px;">Continuar una actividad</h2><div id="pendientes-lista-v16"></div>
     </div>
   </div>
 </div>
@@ -1255,7 +1256,7 @@
 <!-- ══ EXAMEN V3 ══ -->
 <div id="screen-examen" class="screen">
   <div class="header exam-v3-header">
-    <h1 id="examen-titulo">Actividad</h1>
+    <h1 id="examen-titulo">Actividad</h1><button class="btn btn-secondary btn-sm" onclick="pausarActividadV16()">Pausar y salir</button>
     <div class="timer-chip" id="timer-total-chip"><span id="timer-total-label">Tiempo total</span><strong id="timer-total">00:00</strong><div id="timer-total-note"></div></div>
     <div class="timer-chip" id="timer-pregunta-chip"><span id="timer-pregunta-label">Esta pregunta</span><strong id="timer-pregunta">00:00</strong></div>
     <button class="btn btn-secondary btn-sm map-mobile-btn" id="btn-mapa-mobile" onclick="toggleMapaPreguntasV3()">Mapa</button>
@@ -1265,6 +1266,7 @@
     <main class="exam-main">
       <div class="progress-text" id="progress-text"></div>
       <div class="progress-bar"><div class="progress-fill" id="progress-fill" style="width:0%"></div></div>
+      <div id="entrega-estado-v16" class="msg msg-warn" hidden role="status"></div>
       <div id="preguntas-container"></div>
       <div class="autosave-status" id="autosave-status"></div>
     </main>
@@ -2203,7 +2205,7 @@ async function initTemasGrid() {
 async function calcularPriorizacion(alumnoId, temasSeleccionados) {
   if(usaRepasosV15()) {
     const datos=await api({action:'getRepasos',alumno_id:alumnoId});
-    if(datos.version!==15 || !Array.isArray(datos.items)) throw new Error('Actualiza la implementación del banco MIR a V15 para activar los repasos.');
+    if(Number(datos.version)<15 || !Array.isArray(datos.items)) throw new Error('Actualiza la implementación del banco MIR a V15 para activar los repasos.');
     return {...datos,srs:true};
   }
   try {
@@ -4242,6 +4244,8 @@ async function iniciarExamen(codigo, origen=null) {
     if(data.error) throw new Error(data.detalle||data.error);
     if(String(data.completado||'NO').toUpperCase()==='SI') {
       localStorage.removeItem(AUTOGUARDADO_PREFIJO_V3 + codigo);
+      localStorage.removeItem(claveActividadV16(codigo,data.alumno_id));
+      entregaPendienteV16=null;examenActual=null;examenCodigo=null;estadoPreguntasV3=[];temporizacionV3=null;examenEntregandoV3=false;
       alert('Esta actividad ya figura como completada. No se volverá a enviar.');
       volverDeCodigoAlumno(); return;
     }
@@ -4269,11 +4273,16 @@ async function iniciarExamen(codigo, origen=null) {
     if (data.preguntas.some(p => !letrasOpciones(p).includes(p.respuesta_correcta.toLowerCase()))) {
       throw new Error('Falta una respuesta correcta válida en las preguntas devueltas por Google Apps Script.');
     }
+    if(alumnoVerificado && String(data.alumno_id)!==String(alumnoVerificado.alumno_id))throw new Error('Esta actividad pertenece a otro alumno.');
+    entregaPendienteV16=null;ultimoErrorEntregaV16='';
     examenActual=data; examenCodigo=codigo; respuestasAlumna={}; examenEntregandoV3=false; limiteActivadoV3=false; revisionAbiertaV3=false;
     indicePreguntaActualV3=0; estadoPreguntasV3=crearEstadosPreguntasV3();
     const ahora=Date.now();
-    temporizacionV3={inicioMs:ahora, ultimoTick:ahora, resolucionMs:0, visibleMs:0, fueraMs:0, visibleActual:!document.hidden};
+    const inicioServidor=Date.parse(data.hora_inicio);
+    temporizacionV3={inicioMs:Number.isFinite(inicioServidor)?inicioServidor:ahora, ultimoTick:ahora, resolucionMs:0, visibleMs:0, fueraMs:0, visibleActual:!document.hidden};
     const restaurado=restaurarEstadoLocalV3();
+    if(!esPracticaV3()&&Number.isFinite(inicioServidor))temporizacionV3.inicioMs=inicioServidor;
+    aplicarRespuestasServidorV16(data.respuestas_guardadas);
     if(!restaurado) estadoPreguntasV3[0].visitas=1; else estadoPreguntasV3[indicePreguntaActualV3].visitas=(estadoPreguntasV3[indicePreguntaActualV3].visitas||0)+1;
     try { await api({action:'registrarInicioExamen',codigo,hora_inicio:new Date(temporizacionV3.inicioMs).toISOString()}); } catch(e) {}
     irA('screen-examen'); renderizarExamen(); iniciarCronometrosV3(); guardarEstadoLocalV3(false);
@@ -4284,7 +4293,7 @@ async function iniciarExamen(codigo, origen=null) {
 }
 
 function actualizarAcumuladosV3() {
-  if(!temporizacionV3 || examenEntregandoV3 || !examenActual) return;
+  if(!temporizacionV3 || examenEntregandoV3 || entregaPendienteV16 || !examenActual) return;
   const ahora=Date.now(); const delta=Math.max(0,ahora-(temporizacionV3.ultimoTick||ahora));
   temporizacionV3.ultimoTick=ahora;
   if(temporizacionV3.visibleActual) temporizacionV3.visibleMs=(temporizacionV3.visibleMs||0)+delta;
@@ -4302,6 +4311,7 @@ function actualizarAcumuladosV3() {
 }
 
 function iniciarCronometrosV3() {
+  if(entregaPendienteV16)return;
   detenerCronometrosV3(); temporizacionV3.ultimoTick=Date.now();
   intervaloCronometrosV3=setInterval(()=>{
     actualizarAcumuladosV3(); actualizarVisualCronometrosV3();
@@ -4343,7 +4353,7 @@ function irPreguntaV3(idx) {
 }
 
 function seleccionarOpcion(idx, letra) {
-  if(idx!==indicePreguntaActualV3) return;
+  if(idx!==indicePreguntaActualV3 || entregaPendienteV16 || estadoPreguntasV3[idx]?.guardada) return;
   const st=estadoPreguntasV3[idx]; if(!st || (esPracticaV3()&&st.corregida)) return;
   const nueva=String(letra).toUpperCase(); const ahora=new Date().toISOString();
   if(!st.respuesta_inicial){st.respuesta_inicial=nueva;st.fecha_primera_respuesta=ahora;}
@@ -4353,11 +4363,13 @@ function seleccionarOpcion(idx, letra) {
 }
 
 function toggleMarcaPreguntaV3(){
+  if(entregaPendienteV16 || estadoActualV3()?.guardada)return;
   if(String(examenActual?.permitir_marcar||'SI').toUpperCase()==='NO') return;
   const st=estadoActualV3(); if(!st) return; st.marcada=!st.marcada; renderizarExamen(); guardarEstadoLocalV3(true);
 }
 
 function comprobarRespuestaPracticaV3(){
+  if(entregaPendienteV16 || estadoActualV3()?.guardada)return;
   const st=estadoActualV3(); if(!st?.respuesta){alert('Selecciona una respuesta antes de comprobarla.');return;}
   actualizarAcumuladosV3(); st.corregida=true; st.es_correcta=st.respuesta===examenActual.preguntas[indicePreguntaActualV3].respuesta_correcta;
   renderizarExamen(); guardarEstadoLocalV3(true);
@@ -4370,6 +4382,7 @@ function siguientePendienteV3(){
 }
 
 function accionPrincipalPreguntaV3(){
+  if(entregaPendienteV16){enviarExamen(false);return;}
   const st=estadoActualV3();
   if(esPracticaV3()){
     if(!st.corregida) comprobarRespuestaPracticaV3();
@@ -4430,7 +4443,7 @@ function renderizarExamen(){
       <button class="btn ${esPracticaV3()&&!st.corregida?'btn-primary':'btn-success'} btn-next" onclick="accionPrincipalPreguntaV3()" ${principalDisabled?'disabled':''}>${principal}</button>
     </div>
   </div>`;
-  actualizarProgreso(); renderizarMapaV3();
+  actualizarProgreso(); renderizarMapaV3(); actualizarEntregaV16();
 }
 
 function actualizarProgreso(){
@@ -4660,14 +4673,17 @@ function filtrarRevisionResultadosV3(tipo,btn){
 }
 
 function salirAlumno(){
+  if(examenEntregandoV3 && entregaPendienteV16){alert('Espera a que termine el intento de entrega.');return;}
+  if(examenActual&&!examenEntregandoV3&&!guardarEstadoLocalV3(false)){alert('No se pudo guardar una copia local. Mantén abierta la actividad.');return;}
   if(examenActual&&!examenEntregandoV3){actualizarAcumuladosV3();guardarEstadoLocalV3(false);}
-  detenerCronometrosV3(); pinVerificado=false;alumnoVerificado=null;alumnoAccesoActual=null;asignaturaActual=null;todasLasPreguntas=[];alumnosActuales=[];examenActual=null;respuestasAlumna={};examenCodigo=null;datosMetricasAlumno=null;estadoPreguntasV3=[];temporizacionV3=null;irA('screen-inicio');
+  detenerCronometrosV3(); entregaPendienteV16=null;ultimoErrorEntregaV16='';pendientesConsultaV16++;pinVerificado=false;alumnoVerificado=null;alumnoAccesoActual=null;asignaturaActual=null;todasLasPreguntas=[];alumnosActuales=[];examenActual=null;respuestasAlumna={};examenCodigo=null;datosMetricasAlumno=null;estadoPreguntasV3=[];temporizacionV3=null;irA('screen-inicio');
 }
-function volverTrasResultados(){detenerCronometrosV3();examenActual=null;estadoPreguntasV3=[];temporizacionV3=null;examenCodigo=null;if(alumnoVerificado)irA('screen-alumno-menu');else irA('screen-inicio');}
+function volverTrasResultados(){entregaPendienteV16=null;ultimoErrorEntregaV16='';detenerCronometrosV3();examenActual=null;estadoPreguntasV3=[];temporizacionV3=null;examenCodigo=null;if(alumnoVerificado)irA('screen-alumno-menu');else irA('screen-inicio');}
 
 function irA(id){
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
   document.getElementById(id)?.classList.add('active'); window.scrollTo(0,0);
+  if(id==='screen-alumno-menu'&&asignaturaActual)cargarPendientesV16();
   if(id==='screen-generar-examen'&&asignaturaActual){controlesRepasosV15(false);initTemasGrid();cargarAlumnosDesdeMaestroPanel();setTimeout(actualizarControlesActividadProfesorV3,30);}
   if(id==='screen-metricas'&&asignaturaActual){const sel=document.getElementById('metricas-alumno-select');if(!sel||!sel.options.length||sel.options.length<=1)cargarAlumnosDesdeMaestroPanel();}
   if(id==='screen-alumno-generar'&&asignaturaActual){controlesRepasosV15(true);initAlumnoTemasGrid();setTimeout(()=>seleccionarTipoActividadAlumnoV3(tipoActividadAlumnoV3),30);}
@@ -5953,16 +5969,22 @@ async function solicitarBancoV14(params, banco = asignaturaActual) {
     ? alumnoVerificado.session_token
     : sessionStorage.getItem('profesor_v13_' + MAESTRO_URL);
   if (!token) throw new Error('Vuelve a entrar con tu PIN o con tu contraseña para activar la sesión del banco.');
-  const response = await fetch(banco.scriptUrl, {
+  const controller=new AbortController();
+  const timer=setTimeout(()=>controller.abort(),30000);
+  let response;
+  try {response = await fetch(banco.scriptUrl, {
     method:'POST', body:new URLSearchParams({...params,session_token:token}),
-    redirect:'follow',cache:'no-store'
-  });
+    redirect:'follow',cache:'no-store',signal:controller.signal
+  });} catch(e) {
+    if(e.name==='AbortError')throw new Error('El banco tardó demasiado en confirmar. Puedes reintentar; la entrega no se duplicará.');
+    throw e;
+  } finally {clearTimeout(timer);} 
   if (!response.ok) throw new Error('El banco respondió HTTP ' + response.status + '.');
   let data;
   try { data=await response.json(); }
   catch(e) { throw new Error('El banco no devolvió datos válidos. Comprueba su implementación.'); }
   if (!data || data.error || data.ok===false) {
-    throw new Error(data?.error || 'No se pudo confirmar la operación del banco.');
+    throw new Error((data?.action ? data.action + ': ' : '') + (data?.detalle || data?.error || 'No se pudo confirmar la operación del banco.'));
   }
   return data;
 }
@@ -6002,6 +6024,7 @@ function validarSeleccionRepasosV15(seleccionadas) {
 }
 
 function toggleDudaV15() {
+  if(entregaPendienteV16 || estadoActualV3()?.guardada)return;
   const st=estadoActualV3();
   if (!st || !examenActual?.repasos_v15 || examenEntregandoV3) return;
   st.duda=!st.duda;
@@ -6037,7 +6060,7 @@ async function mostrarResumenRepasosV15(alumno) {
   try {
     const datos=await api({action:'getRepasos',alumno_id:alumnoId});
     if(msg._repasoPeticion!==peticion || asignaturaActual?.scriptUrl!==origen)return;
-    if(datos.version!==15 || !Array.isArray(datos.items))throw new Error('Actualiza la implementación del banco MIR a V15.');
+    if(Number(datos.version)<15 || !Array.isArray(datos.items))throw new Error('Actualiza la implementación del banco MIR a V15.');
     const items=datos.items.filter(s=>temas.includes(s.tema)&&fuentes.includes(s.fuente));
     const pendientes=items.filter(s=>s.estado==='pendiente').length;
     const nuevas=items.filter(s=>s.estado==='nueva').length;
@@ -6055,6 +6078,149 @@ async function mostrarResumenRepasosV15(alumno) {
 document.addEventListener('change',e=>{
   if(e.target.id==='examen-alumno')actualizarMsgPriorizacion();
 });
+
+// V16: progreso local aislado por maestro, banco, alumno y actividad.
+let entregaPendienteV16=null;
+let ultimoErrorEntregaV16='';
+let pendientesConsultaV16=0;
+
+function claveActividadV16(codigo,alumnoId) {
+  return 'actividad_v16_'+JSON.stringify([MAESTRO_URL,asignaturaActual?.scriptUrl||'',String(alumnoId||''),String(codigo||'')]);
+}
+function claveProgresoV3(){return claveActividadV16(examenCodigo,examenActual?.alumno_id||alumnoVerificado?.alumno_id);}
+function guardarEstadoLocalV3(mostrar=false){
+  if(!examenActual||!examenCodigo||examenEntregandoV3)return false;
+  try {
+    const dato={version:16,codigo:examenCodigo,alumno_id:String(examenActual.alumno_id||''),maestro:MAESTRO_URL,banco:asignaturaActual.scriptUrl,
+      ids:examenActual.preguntas.map(p=>String(p.id)),indice:indicePreguntaActualV3,estados:estadoPreguntasV3,
+      temporizacion:{...temporizacionV3,ultimoTick:Date.now()},entrega:entregaPendienteV16,guardadoEn:new Date().toISOString()};
+    localStorage.setItem(claveProgresoV3(),JSON.stringify(dato));
+    if(mostrar)mostrarEstadoGuardadoV3('Guardado en este navegador ✓');
+    return true;
+  }catch(e){mostrarEstadoGuardadoV3('No se pudo guardar en el dispositivo. Mantén esta página abierta.');return false;}
+}
+function restaurarEstadoLocalV3(){
+  try {
+    let raw=localStorage.getItem(claveProgresoV3());
+    let antigua=false;
+    // El llamador ya ha obtenido y autorizado la actividad en el servidor.
+    if(!raw){raw=localStorage.getItem(AUTOGUARDADO_PREFIJO_V3+examenCodigo);antigua=!!raw;}
+    if(!raw)return false;
+    const dato=JSON.parse(raw),ids=examenActual.preguntas.map(p=>String(p.id));
+    if(dato.version===16&&(dato.alumno_id!==String(examenActual.alumno_id)||dato.banco!==asignaturaActual.scriptUrl||dato.maestro!==MAESTRO_URL))return false;
+    if(JSON.stringify(dato.ids)!==JSON.stringify(ids)||!Array.isArray(dato.estados)||dato.estados.length!==ids.length)return false;
+    if(antigua&&!confirm('Hay una copia de la versión anterior para '+examenCodigo+'. No identifica al alumno ni al banco. ¿Confirmas que es tu progreso y quieres recuperarlo?'))return false;
+    estadoPreguntasV3=dato.estados;indicePreguntaActualV3=Math.max(0,Math.min(Number(dato.indice)||0,ids.length-1));
+    temporizacionV3={...temporizacionV3,...dato.temporizacion,ultimoTick:Date.now(),visibleActual:!document.hidden};
+    entregaPendienteV16=dato.entrega||null;
+    respuestasAlumna={};estadoPreguntasV3.forEach((s,i)=>{if(s.respuesta)respuestasAlumna[i]=s.respuesta;});
+    if(guardarEstadoLocalV3(false))localStorage.removeItem(AUTOGUARDADO_PREFIJO_V3+examenCodigo);
+    return true;
+  }catch(e){return false;}
+}
+function aplicarRespuestasServidorV16(lista){
+  const porId=new Map((lista||[]).map(r=>[String(r.pregunta_id),r]));
+  examenActual.preguntas.forEach((p,i)=>{
+    const r=porId.get(String(p.id));if(!r)return;
+    Object.assign(estadoPreguntasV3[i],r,{guardada:true,corregida:true,es_correcta:r.respuesta===p.respuesta_correcta});
+    if(r.respuesta)respuestasAlumna[i]=r.respuesta;else delete respuestasAlumna[i];
+  });
+}
+function actualizarEntregaV16(){
+  const el=document.getElementById('entrega-estado-v16');if(!el)return;
+  el.hidden=!entregaPendienteV16;
+  if(entregaPendienteV16){
+    el.textContent='Entrega pendiente. Tus respuestas están fijadas para evitar cambios durante el reintento. '+ultimoErrorEntregaV16;
+    const b=document.createElement('button');b.className='btn btn-primary';b.textContent='Reintentar entrega';b.disabled=examenEntregandoV3;b.onclick=()=>enviarExamen(false);el.appendChild(b);
+  }
+}
+function pausarActividadV16(){
+  if(examenEntregandoV3){alert('Espera a que termine el intento de entrega.');return;}
+  actualizarAcumuladosV3();
+  if(!guardarEstadoLocalV3(false)){alert('El navegador no ha permitido guardar el progreso. Mantén abierta esta actividad.');return;}
+  if(!esPracticaV3()&&Number(examenActual.limite_tiempo_minutos)>0)alert('La actividad queda guardada. Su límite de tiempo seguirá contando durante la pausa.');
+  detenerCronometrosV3();examenActual=null;examenCodigo=null;estadoPreguntasV3=[];temporizacionV3=null;entregaPendienteV16=null;
+  irA(alumnoVerificado?'screen-alumno-menu':'screen-panel-asignatura');
+}
+async function cargarPendientesV16(){
+  const lista=document.getElementById('pendientes-lista-v16');
+  if(!lista||!alumnoVerificado||!asignaturaActual)return;
+  const alumnoId=String(alumnoVerificado.alumno_id),banco=asignaturaActual.scriptUrl,turno=++pendientesConsultaV16;
+  lista.textContent='Consultando actividades pendientes…';
+  const codigos=new Map();
+  try{
+    for(let i=0;i<localStorage.length;i++){
+      const key=localStorage.key(i);if(!key?.startsWith('actividad_v16_'))continue;
+      try{const d=JSON.parse(localStorage.getItem(key));if(d.alumno_id===alumnoId&&d.banco===banco&&d.maestro===MAESTRO_URL)codigos.set(d.codigo,{local:d});}catch(e){}
+    }
+  }catch(e){}
+  let aviso='';
+  try{
+    const remoto=await api({action:'getExamenesAlumno',alumno_id:alumnoId});
+    if(!Array.isArray(remoto))throw new Error('Respuesta del banco no válida.');
+    remoto.forEach(e=>{
+      const code=String(e.examen_id);
+      if(String(e.completado).toUpperCase()!=='SI')codigos.set(code,{...codigos.get(code),remoto:e});
+    });
+  }catch(e){aviso='No se pudo consultar el banco. Se muestran las copias locales; necesitas conexión y una sesión válida para reabrirlas. '+e.message;}
+  if(turno!==pendientesConsultaV16||asignaturaActual?.scriptUrl!==banco||String(alumnoVerificado?.alumno_id)!==alumnoId)return;
+  lista.textContent=aviso||(!codigos.size?'No tienes actividades pendientes en este banco.':'');
+  for(const [codigo,d]of codigos){
+    const boton=document.createElement('button');boton.className='btn btn-secondary btn-full';
+    boton.style.marginTop='8px';
+    boton.textContent=(d.local?.entrega?'Reintentar entrega · ':'Continuar · ')+codigo+(d.local?' · guardada en este navegador':' · disponible en el banco');
+    boton.onclick=()=>{if(String(alumnoVerificado?.alumno_id)===alumnoId&&asignaturaActual?.scriptUrl===banco)iniciarExamen(codigo);};
+    lista.appendChild(boton);
+  }
+}
+
+function prepararEntregaV16(){
+  const ahora=new Date().toISOString(),puntuacion=calcularPuntuacionV5();
+  const filas=examenActual.preguntas.map((p,i)=>{
+    const st=estadoPreguntasV3[i],det=puntuacion.detalles[i];
+    return [examenCodigo+'-'+(i+1),examenCodigo,examenActual.alumna,examenActual.alumno_id,p.id,p.tema,p.concepto,st.respuesta||'',p.respuesta_correcta,det.correcta?'SI':'NO',ahora,
+      Math.round((st.tiempo_ms||0)/1000),st.visitas||0,st.cambios||0,st.respuesta_inicial||'',st.marcada?'SI':'NO',i+1,st.fecha_primera_respuesta||'',st.fecha_ultima_modificacion||'',det.numeroOpciones,det.penalizacion,...(examenActual.repasos_v15?[st.duda?'SI':'NO']:[])];
+  });
+  const respondidas=estadoPreguntasV3.filter(s=>s.respuesta);
+  return {filas,fin:{hora_fin:ahora,tiempo_transcurrido_segundos:Math.max(0,Math.round((Date.now()-temporizacionV3.inicioMs)/1000)),tiempo_resolucion_segundos:Math.round(temporizacionV3.resolucionMs/1000),
+    tiempo_visible_segundos:Math.round(temporizacionV3.visibleMs/1000),tiempo_fuera_pestana_segundos:Math.round(temporizacionV3.fueraMs/1000),tiempo_medio_pregunta_segundos:respondidas.length?Math.round(respondidas.reduce((s,r)=>s+(r.tiempo_ms||0),0)/respondidas.length/1000):0,
+    sistema_penalizacion:puntuacion.sistema,penalizacion_acumulada:puntuacion.penalizacion,puntuacion_neta:puntuacion.puntuacionNeta,nota_bruta:puntuacion.notaBruta,nota_final:puntuacion.notaFinal}};
+}
+async function enviarExamen(forzado=false){
+  if(examenEntregandoV3)return;
+  if(!entregaPendienteV16){
+    if(esPracticaV3()&&!todasCorregidasV3()&&!forzado){alert('Comprueba todas las preguntas antes de finalizar.');return;}
+    if(!forzado&&!confirm('Después de entregar no podrás modificar las respuestas. ¿Continuar?'))return;
+    cerrarRevisionFinalV3();actualizarAcumuladosV3();entregaPendienteV16=prepararEntregaV16();
+    if(!guardarEstadoLocalV3(false))alert('No hay copia persistente en este navegador. Mantén la página abierta hasta confirmar el guardado.');
+  }
+  detenerCronometrosV3();examenEntregandoV3=true;ultimoErrorEntregaV16='';
+  irA('screen-loading');document.getElementById('loading-text').textContent='Guardando y confirmando la entrega…';
+  let fase='guardar respuestas';
+  try{
+    const paquete=entregaPendienteV16;let fin;
+    if(examenActual.entrega_v16){
+      fin=await api({action:'entregarActividadV16',codigo:examenCodigo,entrega:JSON.stringify(paquete)});
+      if(!fin?.ok)throw new Error(fin?.detalle||fin?.error||'El servidor no confirmó la entrega.');
+      aplicarRespuestasServidorV16(fin.respuestas);
+    }else{
+      // Compatibilidad con bancos anteriores; el paquete permanece fijo entre intentos.
+      for(let i=0;i<paquete.filas.length;i+=10)await guardarBloqueActividadV10('guardarRespuestasBloque','filas',paquete.filas.slice(i,i+10));
+      fase='verificar entrega';const v=await api({action:'verificarEntrega',codigo:examenCodigo,esperadas:paquete.filas.length});
+      if(!v?.entrega_completa)throw new Error(v?.detalle||v?.error||'Todavía faltan respuestas por guardar.');
+      fase='finalizar actividad';fin=await api({action:'finalizarExamen',codigo:examenCodigo,...paquete.fin});
+      if(!fin?.ok)throw new Error(fin?.detalle||fin?.error||'No se confirmó la finalización.');
+    }
+    localStorage.removeItem(claveProgresoV3());localStorage.removeItem(AUTOGUARDADO_PREFIJO_V3+examenCodigo);
+    entregaPendienteV16=null;ultimoErrorEntregaV16='';mostrarResultados(calcularPuntuacionV5());
+  }catch(e){
+    examenEntregandoV3=false;ultimoErrorEntregaV16='Error al '+fase+': '+(e.message||e);
+    const guardado=guardarEstadoLocalV3(false);
+    alert(ultimoErrorEntregaV16+'\n'+(guardado?'La entrega está conservada en este navegador. Puedes reintentar o pausar y volver después.':'Mantén esta página abierta: no se ha podido guardar una copia local.'));
+    irA('screen-examen');renderizarExamen();actualizarEntregaV16();
+  }
+}
+window.addEventListener('online',()=>{if(entregaPendienteV16&&!examenEntregandoV3){ultimoErrorEntregaV16='La conexión ha vuelto. Pulsa Reintentar entrega.';actualizarEntregaV16();}});
 
 </script>
 </body>
