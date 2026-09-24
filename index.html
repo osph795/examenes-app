@@ -4733,6 +4733,12 @@ window.addEventListener('resize',()=>{if(examenActual)renderizarMapaV3();});
 // EDITOR V7 — BANCO DE PREGUNTAS E IMÁGENES
 // ═══════════════════════════════════════════════════════
 const EDITOR_KEY_SESSION_V7 = 'editor_upload_key';
+
+function claveSesionEditorV7() {
+  const banco = asignaturaActual?.scriptUrl || asignaturaActual?.nombre || 'sin-banco';
+  return EDITOR_KEY_SESSION_V7 + '::' + banco;
+}
+
 let bancoPreguntasV7 = [];
 let preguntaEditandoIdV7 = null;
 let archivoImagenV7 = null;
@@ -4750,7 +4756,7 @@ function generarPreguntaIdV7() {
 }
 
 function obtenerClaveEditorGuardadaV7() {
-  return sessionStorage.getItem(EDITOR_KEY_SESSION_V7) || '';
+  return sessionStorage.getItem(claveSesionEditorV7()) || '';
 }
 
 async function pedirYValidarClaveEditorV7(forzar=false) {
@@ -4771,12 +4777,12 @@ async function pedirYValidarClaveEditorV7(forzar=false) {
   });
 
   if (data?.error) {
-    sessionStorage.removeItem(EDITOR_KEY_SESSION_V7);
+    sessionStorage.removeItem(claveSesionEditorV7());
     alert(data.error);
     return false;
   }
 
-  sessionStorage.setItem(EDITOR_KEY_SESSION_V7, clave);
+  sessionStorage.setItem(claveSesionEditorV7(), clave);
   return true;
 }
 
