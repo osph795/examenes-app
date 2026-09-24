@@ -107,7 +107,8 @@
     {
       "nombre": "Cardiología",
       "sheetId": "1brJ9KdMdPr4bLkUjTfr4VoFrqQZEuBJbuY0aI6BHIcY",
-      "scriptUrl": "https://script.google.com/macros/s/AKfycby0re8zZhoRHcmcWJyWGL5Wfs2Iq9N-u3-x27Bhe4Lt3nwkWH7_QnAOCsE22OoCU1AL/exec"
+      "scriptUrl": "https://script.google.com/macros/s/AKfycby0re8zZhoRHcmcWJyWGL5Wfs2Iq9N-u3-x27Bhe4Lt3nwkWH7_QnAOCsE22OoCU1AL/exec",
+      "seguridad": "sesion-v14"
     }
   ]
 }
