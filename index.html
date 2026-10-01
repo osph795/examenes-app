@@ -4462,7 +4462,7 @@ function renderizarExamen(){
     <div class="pregunta-texto">${textoHtmlV3(p.enunciado)}</div>
     ${crearBloqueImagenPregunta(p)}
     <div class="opciones">${opciones}</div>
-    ${examenActual.repasos_v15?`<button type="button" class="btn btn-secondary btn-duda-v15" aria-pressed="${!!st.duda}" onclick="toggleDudaV15()">${st.duda?'✓ Tengo dudas: repasar pronto':'Tengo dudas'}</button><p class="duda-help-v15">Marca esta opción si has dudado, aunque aciertes. Se guardará al finalizar y no cambia la nota.</p>`:''}
+    ${usaDudasV15()?`<button type="button" class="btn btn-secondary btn-duda-v15" aria-pressed="${!!st.duda}" onclick="toggleDudaV15()">${st.duda?'✓ No estoy seguro/a':'No estoy seguro/a'}</button><p class="duda-help-v15">Marca esta opción si has dudado, aunque aciertes. Se guardará al finalizar y no cambia la nota.</p>`:''}
     ${crearExplicacionPracticaV3(p,st)}
     <div class="exam-actions">
       <button class="btn btn-secondary btn-prev" onclick="irPreguntaV3(${indicePreguntaActualV3-1})" ${prevDisabled?'disabled':''}>← Anterior</button>
@@ -4520,7 +4520,7 @@ function abrirRevisionFinalV3(){
     </div>
     <h3>${esPracticaV3()?'Preguntas sin comprobar':'Preguntas sin responder'}</h3>${bloqueNums(esPracticaV3()?sinCorregir:pendientes)}
     <h3 style="margin-top:13px;">Preguntas marcadas</h3>${bloqueNums(marcadas)}
-    ${examenActual.repasos_v15?`<h3 style="margin-top:13px;">Preguntas con dudas</h3>${bloqueNums(dudosas)}`:''}
+    ${usaDudasV15()?`<h3 style="margin-top:13px;">Preguntas con dudas</h3>${bloqueNums(dudosas)}`:''}
     ${!puede?'<div class="msg msg-warn" style="margin-top:14px;">La práctica solo puede finalizar cuando hayas comprobado todas las preguntas.</div>':''}
     <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;margin-top:18px;">
       <button class="btn btn-secondary" onclick="cerrarRevisionFinalV3()">Volver a la actividad</button>
@@ -4589,7 +4589,7 @@ async function enviarExamen(forzado=false){
       st.respuesta||'',p.respuesta_correcta,det.correcta?'SI':'NO',ahora,
       Math.round((st.tiempo_ms||0)/1000),st.visitas||0,st.cambios||0,st.respuesta_inicial||'',st.marcada?'SI':'NO',idx+1,
       st.fecha_primera_respuesta||'',st.fecha_ultima_modificacion||'',det.numeroOpciones,det.penalizacion,
-      ...(examenActual.repasos_v15 ? [st.duda?'SI':'NO'] : [])
+      ...(usaDudasV15() ? [st.duda?'SI':'NO'] : [])
     ];
   });
   try{
@@ -4681,11 +4681,11 @@ function mostrarResultados(puntuacion){
     </div>
     <div class="card"><h2>Tiempos</h2><div class="stats-row"><div class="stat-box"><div class="stat-num">${formatoTiempoV3(esPracticaV3()?totalResol:Date.now()-(temporizacionV3?.inicioMs||Date.now()))}</div><div class="stat-label">${esPracticaV3()?'Resolución efectiva':'Tiempo total'}</div></div><div class="stat-box"><div class="stat-num">${formatoTiempoV3(media)}</div><div class="stat-label">Media por respuesta</div></div><div class="stat-box"><div class="stat-num">${lenta?`P${lenta.i+1}`:'—'}</div><div class="stat-label">Más lenta${lenta?' · '+formatoTiempoV3(lenta.ms):''}</div></div></div>${esPracticaV3()?'<p style="font-size:12px;color:#777;">La lectura de las explicaciones no se ha incluido en el tiempo de resolución.</p>':''}</div>`;
   if(politicaPermiteRevisionV3()){
-    html+=`<div class="card"><h2>Revisión</h2><div class="result-filter-row"><button class="btn btn-secondary btn-sm active" onclick="filtrarRevisionResultadosV3('todas',this)">Todas</button><button class="btn btn-secondary btn-sm" onclick="filtrarRevisionResultadosV3('incorrectas',this)">Incorrectas</button><button class="btn btn-secondary btn-sm" onclick="filtrarRevisionResultadosV3('correctas',this)">Correctas</button><button class="btn btn-secondary btn-sm" onclick="filtrarRevisionResultadosV3('marcadas',this)">Marcadas</button>${examenActual.repasos_v15?`<button class="btn btn-secondary btn-sm" onclick="filtrarRevisionResultadosV3('dudosas',this)">Con dudas</button>`:''}</div>`;
+    html+=`<div class="card"><h2>Revisión</h2><div class="result-filter-row"><button class="btn btn-secondary btn-sm active" onclick="filtrarRevisionResultadosV3('todas',this)">Todas</button><button class="btn btn-secondary btn-sm" onclick="filtrarRevisionResultadosV3('incorrectas',this)">Incorrectas</button><button class="btn btn-secondary btn-sm" onclick="filtrarRevisionResultadosV3('correctas',this)">Correctas</button><button class="btn btn-secondary btn-sm" onclick="filtrarRevisionResultadosV3('marcadas',this)">Marcadas</button>${usaDudasV15()?`<button class="btn btn-secondary btn-sm" onclick="filtrarRevisionResultadosV3('dudosas',this)">Con dudas</button>`:''}</div>`;
     examenActual.preguntas.forEach((p,idx)=>{
       const st=estadoPreguntasV3[idx]; const det=detalles[idx]; const ok=det.correcta; const clases=`result-review-item ${ok?'correcta':'incorrecta'} ${st.marcada?'marcada':''} ${st.duda?'dudosa':''}`;
       const detallePenalizacion=det.respondida&&!ok&&conPenalizacion?` · Penalización: −${formatoPenalizacionPreguntaV5(det.penalizacion)} (${det.numeroOpciones} opciones)`:'';
-      html+=`<div class="${clases}" style="margin-bottom:15px;padding-bottom:15px;border-bottom:1px solid #eee;"><div style="font-size:11px;color:#888;margin-bottom:5px;">${!st.respuesta?'⬜':ok?'✅':'❌'} P${idx+1} · ${textoHtmlV3(p.tema)} · ${textoHtmlV3(p.concepto)} · ${formatoTiempoV3(st.tiempo_ms||0)}${st.marcada?' · ⚑ Marcada':''}${st.duda?' · Tengo dudas':''}${detallePenalizacion}</div><div style="font-size:13px;font-weight:600;margin-bottom:9px;">${textoHtmlV3(p.enunciado)}</div>${crearBloqueImagenPregunta(p)}<div style="display:flex;flex-direction:column;gap:5px;">${letrasOpciones(p).map(l=>{const may=l.toUpperCase();let style='padding:7px 11px;border-radius:6px;font-size:12px;border:1px solid #e0e0e0;';let pre='';if(may===p.respuesta_correcta){style+='background:#e6f4ea;border-color:#188038;color:#176b32;font-weight:600;';pre='✓ ';}else if(st.respuesta===may&&!ok){style+='background:#fce8e6;border-color:#d93025;color:#a8241c;';pre='✗ ';}return`<div style="${style}">${pre}${may}) ${textoHtmlV3(p.opciones[l])}</div>`;}).join('')}</div>${detalleExplicacionResultadosV3(p)}</div>`;
+      html+=`<div class="${clases}" style="margin-bottom:15px;padding-bottom:15px;border-bottom:1px solid #eee;"><div style="font-size:11px;color:#888;margin-bottom:5px;">${!st.respuesta?'⬜':ok?'✅':'❌'} P${idx+1} · ${textoHtmlV3(p.tema)} · ${textoHtmlV3(p.concepto)} · ${formatoTiempoV3(st.tiempo_ms||0)}${st.marcada?' · ⚑ Marcada':''}${st.duda?' · No estoy seguro/a':''}${detallePenalizacion}</div><div style="font-size:13px;font-weight:600;margin-bottom:9px;">${textoHtmlV3(p.enunciado)}</div>${crearBloqueImagenPregunta(p)}<div style="display:flex;flex-direction:column;gap:5px;">${letrasOpciones(p).map(l=>{const may=l.toUpperCase();let style='padding:7px 11px;border-radius:6px;font-size:12px;border:1px solid #e0e0e0;';let pre='';if(may===p.respuesta_correcta){style+='background:#e6f4ea;border-color:#188038;color:#176b32;font-weight:600;';pre='✓ ';}else if(st.respuesta===may&&!ok){style+='background:#fce8e6;border-color:#d93025;color:#a8241c;';pre='✗ ';}return`<div style="${style}">${pre}${may}) ${textoHtmlV3(p.opciones[l])}</div>`;}).join('')}</div>${detalleExplicacionResultadosV3(p)}</div>`;
     }); html+='</div>';
   } else {
     const pol=String(examenActual?.politica_explicaciones||'').toUpperCase();
@@ -6024,6 +6024,10 @@ async function solicitarBancoV14(params, banco = asignaturaActual) {
   return data;
 }
 
+// V15: el indicador de duda es independiente del repaso espaciado.
+// Se habilita en los bancos con sesión V14, cuyos backends guardan tiene_duda en la columna V.
+function usaDudasV15() { return bancoConSesionV14(); }
+
 // V15: repaso por pregunta. Los demás bancos conservan su priorización anterior.
 function usaRepasosV15() { return asignaturaActual?.nombre === 'MIR'; }
 
@@ -6061,7 +6065,7 @@ function validarSeleccionRepasosV15(seleccionadas) {
 function toggleDudaV15() {
   if(entregaPendienteV16 || estadoActualV3()?.guardada)return;
   const st=estadoActualV3();
-  if (!st || !examenActual?.repasos_v15 || examenEntregandoV3) return;
+  if (!st || !usaDudasV15() || examenEntregandoV3) return;
   st.duda=!st.duda;
   renderizarExamen(); guardarEstadoLocalV3(true);
 }
