@@ -612,7 +612,7 @@
       <div class="editor-form-grid">
         <div>
           <label>ID de la pregunta <span class="required-mark">*</span></label>
-          <input type="text" id="ed-pregunta-id-v7" placeholder="Ej. FIS-T01-0001">
+          <input type="text" id="ed-pregunta-id-v7" placeholder="Ej. PGS-T1-0044" oninput="this.dataset.autoGenerado='0'">
         </div>
         <div>
           <label>Dificultad</label>
@@ -4744,7 +4744,21 @@ let preguntaEditandoIdV7 = null;
 let archivoImagenV7 = null;
 let urlObjetoImagenV7 = '';
 
-function generarPreguntaIdV7() {
+function generarPreguntaIdV7(temaId='') {
+  const tema = String(temaId || '').trim();
+
+  if (asignaturaActual?.nombre === 'Patología General y Semiología' && /^PGS-T\d+$/i.test(tema)) {
+    const prefijo = tema + '-';
+    let max = -1;
+    (bancoPreguntasV7 || []).forEach(p => {
+      const id = String(p.id || p.pregunta_id || '').trim();
+      if (!id.startsWith(prefijo)) return;
+      const sufijoNumerico = id.slice(prefijo.length);
+      if (/^\d+$/.test(sufijoNumerico)) max = Math.max(max, Number(sufijoNumerico));
+    });
+    return tema + '-' + String(max + 1).padStart(4,'0');
+  }
+
   const ahora = new Date();
   const fecha = [
     ahora.getFullYear(),
@@ -4752,7 +4766,17 @@ function generarPreguntaIdV7() {
     String(ahora.getDate()).padStart(2,'0')
   ].join('');
   const sufijo = ahora.getTime().toString(36).toUpperCase().slice(-7);
-  return `PROPIA-${fecha}-${sufijo}`;
+  return 'PROPIA-' + fecha + '-' + sufijo;
+}
+
+function refrescarIdPreguntaPorTemaV7() {
+  if (preguntaEditandoIdV7) return;
+  const input = document.getElementById('ed-pregunta-id-v7');
+  const tema = String(document.getElementById('ed-tema-id-v7')?.value || '').trim();
+  if (!input || input.dataset.autoGenerado !== '1') return;
+  if (asignaturaActual?.nombre === 'Patología General y Semiología' && /^PGS-T\d+$/i.test(tema)) {
+    input.value = generarPreguntaIdV7(tema);
+  }
 }
 
 function obtenerClaveEditorGuardadaV7() {
@@ -4958,6 +4982,7 @@ function nuevaPreguntaV7() {
 
   document.getElementById('editor-pregunta-titulo-v7').textContent = 'Nueva pregunta';
   document.getElementById('ed-pregunta-id-v7').disabled = false;
+  document.getElementById('ed-pregunta-id-v7').dataset.autoGenerado = '1';
   document.getElementById('ed-pregunta-id-v7').value = generarPreguntaIdV7();
   document.getElementById('ed-fuente-v7').value = fuentePredeterminadaEditorV8();
   document.getElementById('ed-tema-id-v7').value = '';
@@ -5018,6 +5043,7 @@ function editarPreguntaV7(id) {
 
   document.getElementById('editor-pregunta-titulo-v7').textContent = 'Editar pregunta';
   document.getElementById('ed-pregunta-id-v7').disabled = true;
+  document.getElementById('ed-pregunta-id-v7').dataset.autoGenerado = '0';
   document.getElementById('ed-pregunta-id-v7').value = p.id || '';
   document.getElementById('ed-fuente-v7').value = p.fuente || 'PROPIA';
   document.getElementById('ed-tema-id-v7').value = p.tema || '';
@@ -5054,7 +5080,9 @@ function duplicarPreguntaV7(id) {
   preguntaEditandoIdV7 = null;
   document.getElementById('editor-pregunta-titulo-v7').textContent = 'Duplicar pregunta';
   document.getElementById('ed-pregunta-id-v7').disabled = false;
-  document.getElementById('ed-pregunta-id-v7').value = generarPreguntaIdV7();
+  document.getElementById('ed-pregunta-id-v7').dataset.autoGenerado = '1';
+  document.getElementById('ed-pregunta-id-v7').value =
+    generarPreguntaIdV7(document.getElementById('ed-tema-id-v7').value);
   document.getElementById('ed-guardar-estado-v7').textContent =
     'Se guardará como una pregunta nueva.';
 }
@@ -5684,6 +5712,7 @@ function seleccionarTemaV8() {
   }
 
   actualizarBloqueoCamposV8();
+  refrescarIdPreguntaPorTemaV7();
   validarConsistenciaClasificacionV8();
   actualizarPrevisualizacionPreguntaV7();
 }
@@ -5700,6 +5729,7 @@ function temaManualCambiadoV8() {
     String(document.getElementById('ed-concepto-id-v7')?.value || '').trim()
   );
   actualizarBloqueoCamposV8();
+  refrescarIdPreguntaPorTemaV7();
   actualizarPrevisualizacionPreguntaV7();
 }
 
