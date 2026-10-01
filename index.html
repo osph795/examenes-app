@@ -4784,6 +4784,20 @@ function obtenerClaveEditorGuardadaV7() {
 }
 
 async function pedirYValidarClaveEditorV7(forzar=false) {
+  // Patología V15 ya valida primero la sesión de profesor contra el maestro.
+  // Su backend no necesita una segunda contraseña privada para abrir el editor.
+  if (asignaturaActual?.nombre === 'Patología General y Semiología') {
+    const data = await postBackendV7({
+      action:'validarEditor',
+      editor_key:''
+    });
+    if (data?.error) {
+      alert(data.error);
+      return false;
+    }
+    return true;
+  }
+
   let clave = forzar ? '' : obtenerClaveEditorGuardadaV7();
 
   if (!clave) {
