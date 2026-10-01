@@ -4747,7 +4747,7 @@ let urlObjetoImagenV7 = '';
 function generarPreguntaIdV7(temaId='') {
   const tema = String(temaId || '').trim();
 
-  if (asignaturaActual?.nombre === 'Patología General y Semiología' && /^PGS-T\d+$/i.test(tema)) {
+  if (asignaturaActual?.nombre === 'Patología General y Semiología' && /^PGS-T\d+(?:\.\d+)?$/i.test(tema)) {
     const prefijo = tema + '-';
     let max = -1;
     (bancoPreguntasV7 || []).forEach(p => {
@@ -4774,7 +4774,7 @@ function refrescarIdPreguntaPorTemaV7() {
   const input = document.getElementById('ed-pregunta-id-v7');
   const tema = String(document.getElementById('ed-tema-id-v7')?.value || '').trim();
   if (!input || input.dataset.autoGenerado !== '1') return;
-  if (asignaturaActual?.nombre === 'Patología General y Semiología' && /^PGS-T\d+$/i.test(tema)) {
+  if (asignaturaActual?.nombre === 'Patología General y Semiología' && /^PGS-T\d+(?:\.\d+)?$/i.test(tema)) {
     input.value = generarPreguntaIdV7(tema);
   }
 }
