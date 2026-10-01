@@ -4982,6 +4982,13 @@ function obtenerPreguntaBancoV7(id) {
   return bancoPreguntasV7.find(p => String(p.id) === String(id)) || null;
 }
 
+function valorDificultadEditorV7(v) {
+  const d = String(v || 'media').trim().toLowerCase();
+  if (['básica','basica','fácil','facil'].includes(d)) return 'facil';
+  if (['difícil','dificil'].includes(d)) return 'dificil';
+  return 'media';
+}
+
 function editarPreguntaV7(id) {
   const p = obtenerPreguntaBancoV7(id);
   if (!p) {
@@ -5000,7 +5007,7 @@ function editarPreguntaV7(id) {
   document.getElementById('ed-tema-nombre-v7').value = p.tema_nombre || '';
   document.getElementById('ed-concepto-id-v7').value = p.concepto_id || '';
   document.getElementById('ed-concepto-nombre-v7').value = p.concepto || '';
-  document.getElementById('ed-dificultad-v7').value = p.dificultad || 'media';
+  document.getElementById('ed-dificultad-v7').value = valorDificultadEditorV7(p.dificultad);
   document.getElementById('ed-activa-v7').value = p.activa ? 'SI' : 'NO';
   document.getElementById('ed-tags-v7').value = p.tags || '';
   document.getElementById('ed-enunciado-v7').value = p.enunciado || '';
@@ -5822,7 +5829,7 @@ function aplicarUltimaClasificacionV8(silencioso=false) {
   document.getElementById('ed-tema-nombre-v7').value = datos.tema_nombre || '';
   document.getElementById('ed-concepto-id-v7').value = datos.concepto_id || '';
   document.getElementById('ed-concepto-nombre-v7').value = datos.concepto_nombre || '';
-  document.getElementById('ed-dificultad-v7').value = datos.dificultad || 'media';
+  document.getElementById('ed-dificultad-v7').value = valorDificultadEditorV7(datos.dificultad);
   document.getElementById('ed-tags-v7').value = datos.tags || '';
 
   sincronizarSelectoresDesdeFormularioV8();
