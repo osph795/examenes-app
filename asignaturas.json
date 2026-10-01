@@ -85,7 +85,8 @@
     {
       "nombre": "Patología General y Semiología",
       "sheetId": "1mKViGlf3viaWy7wzAju2GCvgIxKP6zkah9N2cceR3_I",
-      "scriptUrl": "https://script.google.com/macros/s/AKfycbwAMig0c-qM5dtC_08V_rKC-rzNxzmt_xklFE7XiaStrIEjKaA-mh4XY9AYXX_4hpsV/exec"
+      "scriptUrl": "https://script.google.com/macros/s/AKfycbwAMig0c-qM5dtC_08V_rKC-rzNxzmt_xklFE7XiaStrIEjKaA-mh4XY9AYXX_4hpsV/exec",
+      "seguridad": "sesion-v14"
     },
     {
       "nombre": "Fisiología Médica II",
