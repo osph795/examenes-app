@@ -6218,7 +6218,7 @@ function prepararEntregaV16(){
   const filas=examenActual.preguntas.map((p,i)=>{
     const st=estadoPreguntasV3[i],det=puntuacion.detalles[i];
     return [examenCodigo+'-'+(i+1),examenCodigo,examenActual.alumna,examenActual.alumno_id,p.id,p.tema,p.concepto,st.respuesta||'',p.respuesta_correcta,det.correcta?'SI':'NO',ahora,
-      Math.round((st.tiempo_ms||0)/1000),st.visitas||0,st.cambios||0,st.respuesta_inicial||'',st.marcada?'SI':'NO',i+1,st.fecha_primera_respuesta||'',st.fecha_ultima_modificacion||'',det.numeroOpciones,det.penalizacion,...(examenActual.repasos_v15?[st.duda?'SI':'NO']:[])];
+      Math.round((st.tiempo_ms||0)/1000),st.visitas||0,st.cambios||0,st.respuesta_inicial||'',st.marcada?'SI':'NO',i+1,st.fecha_primera_respuesta||'',st.fecha_ultima_modificacion||'',det.numeroOpciones,det.penalizacion,...(usaDudasV15()?[st.duda?'SI':'NO']:[])];
   });
   const respondidas=estadoPreguntasV3.filter(s=>s.respuesta);
   return {filas,fin:{hora_fin:ahora,tiempo_transcurrido_segundos:Math.max(0,Math.round((Date.now()-temporizacionV3.inicioMs)/1000)),tiempo_resolucion_segundos:Math.round(temporizacionV3.resolucionMs/1000),
