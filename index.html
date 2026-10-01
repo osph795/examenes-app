@@ -612,7 +612,7 @@
       <div class="editor-form-grid">
         <div>
           <label>ID de la pregunta <span class="required-mark">*</span></label>
-          <input type="text" id="ed-pregunta-id-v7" placeholder="Ej. PGS-T1-0044" oninput="this.dataset.autoGenerado='0'">
+          <input type="text" id="ed-pregunta-id-v7" placeholder="Ej. PGS-T1-0036" oninput="this.dataset.autoGenerado='0'">
         </div>
         <div>
           <label>Dificultad</label>
@@ -4965,11 +4965,12 @@ function escaparJsV7(v) {
     .replace(/\n/g,'\\n');
 }
 
-function fuentePredeterminadaEditorV8() {
+function fuentePredeterminadaEditorV8(excluirImagenes=false) {
   const conteo = new Map();
   (bancoPreguntasV7 || []).forEach(p => {
     const fuente = String(p.fuente || '').trim();
     if (!fuente) return;
+    if (excluirImagenes && fuente.toUpperCase() === 'IMÁGENES') return;
     conteo.set(fuente, (conteo.get(fuente) || 0) + 1);
   });
   const ordenadas = [...conteo.entries()].sort((a,b) => b[1]-a[1] || a[0].localeCompare(b[0],'es'));
@@ -4984,7 +4985,7 @@ function nuevaPreguntaV7() {
   document.getElementById('ed-pregunta-id-v7').disabled = false;
   document.getElementById('ed-pregunta-id-v7').dataset.autoGenerado = '1';
   document.getElementById('ed-pregunta-id-v7').value = generarPreguntaIdV7();
-  document.getElementById('ed-fuente-v7').value = fuentePredeterminadaEditorV8();
+  document.getElementById('ed-fuente-v7').value = fuentePredeterminadaEditorV8(true);
   document.getElementById('ed-tema-id-v7').value = '';
   document.getElementById('ed-tema-nombre-v7').value = '';
   document.getElementById('ed-concepto-id-v7').value = '';
@@ -5001,12 +5002,6 @@ function nuevaPreguntaV7() {
   document.getElementById('ed-estado-exp-v7').value = 'revisada';
   document.getElementById('ed-imagen-url-v7').value = '';
   document.getElementById('ed-imagen-alt-v7').value = '';
-  const fuente = document.getElementById('ed-fuente-v7');
-  if (fuente && String(fuente.value || '').trim().toUpperCase() === 'IMÁGENES') {
-    fuente.value = fuentePredeterminadaEditorV8();
-    sincronizarFuenteManualV8();
-    validarConsistenciaClasificacionV8();
-  }
   document.getElementById('ed-imagen-estado-v7').textContent = '';
   document.getElementById('ed-guardar-estado-v7').textContent = '';
   document.getElementById('ed-imagen-preview-v7').innerHTML = 'No hay imagen seleccionada.';
@@ -5469,6 +5464,12 @@ function retirarImagenPreguntaV7() {
   limpiarArchivoImagenV7();
   document.getElementById('ed-imagen-url-v7').value = '';
   document.getElementById('ed-imagen-alt-v7').value = '';
+  const fuente = document.getElementById('ed-fuente-v7');
+  if (fuente && String(fuente.value || '').trim().toUpperCase() === 'IMÁGENES') {
+    fuente.value = fuentePredeterminadaEditorV8(true);
+    sincronizarFuenteManualV8();
+    validarConsistenciaClasificacionV8();
+  }
   document.getElementById('ed-imagen-estado-v7').textContent =
     'La imagen se retirará de esta pregunta al guardar. El archivo ya subido no se borra automáticamente de GitHub.';
   document.getElementById('ed-imagen-preview-v7').innerHTML =
@@ -5520,6 +5521,11 @@ function actualizarPrevisualizacionPreguntaV7() {
 // V8 — CLASIFICACIÓN INTELIGENTE
 // ═══════════════════════════════════════════════════════
 const EDITOR_CLASIFICACION_RECIENTE_V8 = 'editor_clasificacion_reciente';
+
+function claveClasificacionRecienteV8() {
+  const banco = asignaturaActual?.scriptUrl || asignaturaActual?.nombre || 'sin-banco';
+  return EDITOR_CLASIFICACION_RECIENTE_V8 + '::' + banco;
+}
 let indiceClasificacionV8 = {
   fuentes: [],
   temas: [],
@@ -5865,7 +5871,7 @@ function guardarUltimaClasificacionV8(p) {
     tags:p.tags || ''
   };
   localStorage.setItem(
-    EDITOR_CLASIFICACION_RECIENTE_V8,
+    claveClasificacionRecienteV8(),
     JSON.stringify(datos)
   );
 }
@@ -5874,7 +5880,7 @@ function aplicarUltimaClasificacionV8(silencioso=false) {
   let datos = null;
   try {
     datos = JSON.parse(
-      localStorage.getItem(EDITOR_CLASIFICACION_RECIENTE_V8) || 'null'
+      localStorage.getItem(claveClasificacionRecienteV8()) || 'null'
     );
   } catch (e) {}
 
@@ -5883,7 +5889,7 @@ function aplicarUltimaClasificacionV8(silencioso=false) {
     return;
   }
 
-  document.getElementById('ed-fuente-v7').value = datos.fuente || 'PROPIA';
+  document.getElementById('ed-fuente-v7').value = datos.fuente || fuentePredeterminadaEditorV8(true);
   document.getElementById('ed-tema-id-v7').value = datos.tema_id || '';
   document.getElementById('ed-tema-nombre-v7').value = datos.tema_nombre || '';
   document.getElementById('ed-concepto-id-v7').value = datos.concepto_id || '';
@@ -5892,6 +5898,7 @@ function aplicarUltimaClasificacionV8(silencioso=false) {
   document.getElementById('ed-tags-v7').value = datos.tags || '';
 
   sincronizarSelectoresDesdeFormularioV8();
+  refrescarIdPreguntaPorTemaV7();
   validarConsistenciaClasificacionV8();
   actualizarPrevisualizacionPreguntaV7();
 }
