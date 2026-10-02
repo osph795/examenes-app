@@ -11,9 +11,9 @@
  * - Editor de preguntas e imágenes.
  * - Sesión V14 validada contra el maestro.
  *
- * Propiedades de script necesarias para editor/imágenes:
- *   EDITOR_UPLOAD_KEY (o EDITOR_KEY por compatibilidad)
+ * Propiedad de script necesaria para biblioteca/subida de imágenes:
  *   GITHUB_TOKEN
+ * El acceso al editor se autoriza mediante la sesión V14/V15 de profesor.
  * Owner/repo/branch/folder tienen valores seguros por defecto y pueden sobrescribirse.
  */
 
@@ -760,15 +760,9 @@ function procesarEditorV14_(e) {
       });
     }
 
-    const editorKey = norm(e.parameter.editor_key);
-
-    if (!validarClaveEditor_(editorKey)) {
-      return resp({
-        error: 'Clave privada del editor incorrecta',
-        codigo: 'EDITOR_KEY_INVALIDA'
-      });
-    }
-
+    // En V14/V15, esta función solo se alcanza después de validar
+    // que la sesión pertenece a un profesor en doPost().
+    // No se exige una segunda contraseña privada para el editor.
     if (action === 'validarEditor') {
       return resp({
         ok: true,
@@ -1652,8 +1646,7 @@ function obtenerConfigGitHub_() {
   };
 
   const requeridas = {
-    GITHUB_TOKEN: config.token,
-    EDITOR_UPLOAD_KEY_o_EDITOR_KEY: config.editorKey
+    GITHUB_TOKEN: config.token
   };
 
   const faltantes = Object.keys(requeridas)
