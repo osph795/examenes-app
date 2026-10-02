@@ -4784,9 +4784,9 @@ function obtenerClaveEditorGuardadaV7() {
 }
 
 async function pedirYValidarClaveEditorV7(forzar=false) {
-  // Patología V15 ya valida primero la sesión de profesor contra el maestro.
-  // Su backend no necesita una segunda contraseña privada para abrir el editor.
-  if (asignaturaActual?.nombre === 'Patología General y Semiología') {
+  // Los bancos V15 modernizados de Patología y Psicología validan primero
+  // la sesión de profesor contra el maestro y no necesitan una segunda clave.
+  if (['Patología General y Semiología','Psicología Médica'].includes(asignaturaActual?.nombre)) {
     const data = await postBackendV7({
       action:'validarEditor',
       editor_key:''
