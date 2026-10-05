@@ -21,7 +21,7 @@ const SPREADSHEET_ID = '1p-ct1R2hDAUD4dCRmIYd4lpr9nV28phIzbPXFR13-cQ';
 const GITHUB_DEFAULT_OWNER = 'osph795';
 const GITHUB_DEFAULT_REPO = 'examenes-imagenes';
 const GITHUB_DEFAULT_BRANCH = 'main';
-const GITHUB_DEFAULT_FOLDER = 'images/fisiologia-medica-ii';
+const GITHUB_DEFAULT_FOLDER = 'images/fisiologia-us';
 
 function procesarBancoV14_(e) {
   try {
