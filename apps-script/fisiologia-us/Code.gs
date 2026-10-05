@@ -2476,7 +2476,7 @@ function invalidarResumenTemas_() {
       .remove('temas_v11_' + SPREADSHEET_ID);
   } catch (e) {}
 }
-const BANCO_NOMBRE_V14 = 'Fisiología Médica II';
+const BANCO_NOMBRE_V14 = 'Fisiología US';
 const BANCO_REPASOS_V15 = false;
 const MAESTRO_URL_V14 = 'https://script.google.com/macros/s/AKfycbyO0xdkuz1Z9sfcOQm-vBkoFZivDYtEC_F1fmflLO-1xJ9rAN_JbPGSjjkQdeMOEIE8Iw/exec';
 
