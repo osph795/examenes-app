@@ -6162,27 +6162,63 @@ async function solicitarBancoV14(params, banco = asignaturaActual) {
     ? alumnoVerificado.session_token
     : sessionStorage.getItem('profesor_v13_' + MAESTRO_URL);
   if (!token) throw new Error('Vuelve a entrar con tu PIN o con tu contraseña para activar la sesión del banco.');
-  const controller=new AbortController();
-  const timer=setTimeout(()=>controller.abort(),30000);
-  let response;
-  try {response = await fetch(banco.scriptUrl, {
-    method:'POST', body:new URLSearchParams({...params,session_token:token}),
-    redirect:'follow',cache:'no-store',signal:controller.signal
-  });} catch(e) {
-    if(e.name==='AbortError')throw new Error('El banco tardó demasiado en confirmar. Puedes reintentar; la entrega no se duplicará.');
-    if (banco?.nombre === 'Fisiología US' && e instanceof TypeError) {
-      throw new Error('No se pudo abrir el backend de Fisiología US. El despliegue de Google Apps Script debe estar actualizado y permitir acceso a “Cualquiera”.');
+
+  const accion = String(params?.action || '');
+  // Estas operaciones son idempotentes en los bancos V14/V15: si el servidor llegó
+  // a guardar la petición pero Safari perdió la respuesta, repetirla no duplica datos.
+  const reintentable = [
+    'getPreguntas','getTemasFuentes','getExamen','getExamenesAlumno','getRespuestasAlumno',
+    'guardarExamen','guardarPreguntas','guardarRespuestasBloque','registrarInicioExamen',
+    'verificarEntrega','finalizarExamen'
+  ].includes(accion);
+  const maxIntentos = reintentable ? 3 : 1;
+  let ultimoError = null;
+
+  for (let intento = 0; intento < maxIntentos; intento++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 30000);
+    try {
+      const response = await fetch(banco.scriptUrl, {
+        method:'POST',
+        body:new URLSearchParams({...params,session_token:token}),
+        redirect:'follow',
+        cache:'no-store',
+        signal:controller.signal
+      });
+
+      if (!response.ok) {
+        const error = new Error('El banco respondió HTTP ' + response.status + '.');
+        error.transitorio = response.status === 429 || response.status >= 500;
+        throw error;
+      }
+
+      let data;
+      try { data = await response.json(); }
+      catch(e) { throw new Error('El banco no devolvió datos válidos. Comprueba su implementación.'); }
+
+      if (!data || data.error || data.ok === false) {
+        throw new Error((data?.action ? data.action + ': ' : '') + (data?.detalle || data?.error || 'No se pudo confirmar la operación del banco.'));
+      }
+      return data;
+    } catch(e) {
+      ultimoError = e;
+      const transitorio = e?.transitorio || e?.name === 'AbortError' || e instanceof TypeError;
+      if (transitorio && intento < maxIntentos - 1) {
+        await esperar(intento === 0 ? 900 : 1800);
+        continue;
+      }
+      if (e?.name === 'AbortError') {
+        throw new Error('El banco tardó demasiado en confirmar tras varios intentos. La operación puede reintentarse sin duplicar la entrega.');
+      }
+      if (e instanceof TypeError) {
+        throw new Error('La conexión con Google Apps Script se interrumpió tras varios intentos. La entrega queda conservada y puede reintentarse sin duplicarse.');
+      }
+      throw e;
+    } finally {
+      clearTimeout(timer);
     }
-    throw e;
-  } finally {clearTimeout(timer);} 
-  if (!response.ok) throw new Error('El banco respondió HTTP ' + response.status + '.');
-  let data;
-  try { data=await response.json(); }
-  catch(e) { throw new Error('El banco no devolvió datos válidos. Comprueba su implementación.'); }
-  if (!data || data.error || data.ok===false) {
-    throw new Error((data?.action ? data.action + ': ' : '') + (data?.detalle || data?.error || 'No se pudo confirmar la operación del banco.'));
   }
-  return data;
+  throw ultimoError || new Error('No se pudo completar la solicitud al banco.');
 }
 
 // V15: el indicador de duda es independiente del repaso espaciado.
