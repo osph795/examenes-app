@@ -1397,7 +1397,9 @@ async function cargarConfigProfesorPublica() {
 
   const locales = cargarAsignaturas();
   const porNombre = new Map();
-  [...(publico.asignaturas || []), ...locales].forEach((a, idx) => {
+  // La configuración pública es la fuente de verdad. Las entradas locales antiguas
+  // se conservan solo si no existe una asignatura pública con el mismo nombre.
+  [...locales, ...(publico.asignaturas || [])].forEach((a, idx) => {
     if (!a || !a.nombre || !a.scriptUrl) return;
     const idBase = a.id || ('PUB-' + btoa(unescape(encodeURIComponent(a.nombre))).replace(/=+$/,'').slice(0,12));
     porNombre.set(a.nombre, { id: idBase, nombre: a.nombre, sheetId: a.sheetId || '', scriptUrl: a.scriptUrl, seguridad:a.seguridad || '' });
@@ -1727,6 +1729,9 @@ let detalleFuentesPorAsignatura = {}; // { nombreAsignatura: [fuentes] } caché 
 
 // Entrada al flujo: abre la gestión central de alumnos
 async function abrirGestionAlumnos() {
+  // Refrescar siempre la configuración pública antes de gestionar alumnos.
+  // Evita usar una URL de maestro o una lista de asignaturas antigua guardada en el dispositivo.
+  try { await cargarConfigProfesorPublica(); } catch (e) {}
   if (!MAESTRO_URL) {
     alert('Primero debes configurar la URL del maestro.');
     irA('screen-config-maestro');
@@ -1747,7 +1752,9 @@ async function cargarYRenderizarAlumnos() {
     actualizarSelectAlumnos();
   } catch(e) {
     alumnosActuales = [];
-    container.innerHTML = '<p style="font-size:13px;color:#d93025;">Error al cargar los alumnos desde el maestro. Revisa la URL en "Configurar maestro".</p>';
+    container.innerHTML = '<div class="msg msg-warn"><strong>No se pudieron cargar los alumnos.</strong><div id="maestro-error-detalle" style="margin-top:6px;"></div><div style="margin-top:8px;font-size:12px;">Si la sesión ha caducado, vuelve a entrar como profesor. Si no, revisa la implementación del Apps Script maestro.</div></div>';
+    const detalle = document.getElementById('maestro-error-detalle');
+    if (detalle) detalle.textContent = e && e.message ? e.message : String(e || 'Error desconocido del maestro.');
   }
 }
 
@@ -1764,7 +1771,8 @@ function renderizarListaAlumnosGlobal() {
           const modo = (x.modo || 'supervisado').toLowerCase();
           const color = modo === 'autonomo' ? '#fff3e0' : '#e3f2fd';
           const textColor = modo === 'autonomo' ? '#e65100' : '#1565c0';
-          return `<span class="badge" style="background:${color};color:${textColor};margin-right:4px;">${x.asignatura}</span>`;
+          const modoTexto = modo === 'autonomo' ? 'Autónomo' : 'Supervisado';
+          return `<span class="badge" style="background:${color};color:${textColor};margin-right:4px;">${x.asignatura} · ${modoTexto}</span>`;
         }).join('')
       : '<span style="font-size:12px;color:#888;">Sin asignaturas</span>';
     return `
@@ -1816,6 +1824,10 @@ async function abrirDetalleAlumno(alumnoId) {
   alumnoEditando = alumnoId;
   detalleFuentesPorAsignatura = {};
 
+  // El formulario debe trabajar con la configuración pública más reciente.
+  // Si falla la red, cargarConfigProfesorPublica conserva como respaldo lo ya guardado localmente.
+  try { await cargarConfigProfesorPublica(); } catch (e) {}
+
   let a = null;
   if (alumnoId) {
     a = alumnosActuales.find(x => x.alumno_id === alumnoId);
@@ -1848,7 +1860,7 @@ async function abrirDetalleAlumno(alumnoId) {
             <strong style="font-size:15px;">${asig.nombre}</strong>
           </label>
           <div class="det-asig-body" id="${bloqueId}-body" style="display:${tiene ? 'block' : 'none'};padding-left:26px;">
-            <label style="font-size:13px;">Modo</label>
+            <label style="font-size:13px;">Modo de acceso</label>
             <select class="det-asig-modo" onchange="onCambioModoDetalleAsignatura('${asig.id}')">
               <option value="supervisado" ${modo==='supervisado'?'selected':''}>Supervisado (solo exámenes del profesor)</option>
               <option value="autonomo" ${modo==='autonomo'?'selected':''}>Autónomo (puede generarse sus propios exámenes)</option>
