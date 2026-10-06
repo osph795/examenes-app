@@ -6170,6 +6170,9 @@ async function solicitarBancoV14(params, banco = asignaturaActual) {
     redirect:'follow',cache:'no-store',signal:controller.signal
   });} catch(e) {
     if(e.name==='AbortError')throw new Error('El banco tardó demasiado en confirmar. Puedes reintentar; la entrega no se duplicará.');
+    if (banco?.nombre === 'Fisiología US' && e instanceof TypeError) {
+      throw new Error('No se pudo abrir el backend de Fisiología US. El despliegue de Google Apps Script debe estar actualizado y permitir acceso a “Cualquiera”.');
+    }
     throw e;
   } finally {clearTimeout(timer);} 
   if (!response.ok) throw new Error('El banco respondió HTTP ' + response.status + '.');
