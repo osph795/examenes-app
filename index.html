@@ -1882,12 +1882,16 @@ async function abrirDetalleAlumno(alumnoId) {
         </div>`;
     }).join('');
 
-    // Para cada asignatura marcada, cargar sus fuentes (si está en modo autónomo)
+    // Inicializar el estado visual de cada asignatura ya concedida.
     for (const asig of asignaturasDisponibles) {
       const acceso = accesos.find(x => x.asignatura === asig.nombre);
-      if (acceso && (acceso.modo || '').toLowerCase() === 'autonomo' && (acceso.fuentes || '').trim()) {
+      if (!acceso) continue;
+      const modoAcceso = (acceso.modo || 'supervisado').toLowerCase();
+      if (modoAcceso === 'autonomo' && (acceso.fuentes || '').trim()) {
         // Solo cargamos el catálogo si ya había una restricción de fuentes que preservar.
         cargarFuentesParaDetalle(asig);
+      } else {
+        onCambioModoDetalleAsignatura(asig.id);
       }
     }
   }
@@ -1967,12 +1971,24 @@ async function cargarFuentesParaDetalle(asig) {
   if (!fuentes) {
     try {
       let data;
-      if (bancoConSesionV14(asig)) {
-        data = await solicitarBancoV14({action:'getTemasFuentes'}, asig);
-      } else {
-        const response = await fetch(asig.scriptUrl + '?action=getTemasFuentes');
-        if (!response.ok) throw new Error('No se pudieron consultar las fuentes.');
-        data = await response.json();
+      try {
+        if (bancoConSesionV14(asig)) {
+          data = await solicitarBancoV14({action:'getTemasFuentes'}, asig);
+        } else {
+          const response = await fetch(asig.scriptUrl + '?action=getTemasFuentes', {cache:'no-store'});
+          if (!response.ok) throw new Error('No se pudieron consultar las fuentes.');
+          data = await response.json();
+          if (data?.error || data?.ok === false) throw new Error(data.detalle || data.error);
+        }
+      } catch (resumenError) {
+        // Compatibilidad con bancos antiguos que todavía no implementan getTemasFuentes.
+        if (bancoConSesionV14(asig)) {
+          data = await solicitarBancoV14({action:'getPreguntas'}, asig);
+        } else {
+          const response = await fetch(asig.scriptUrl + '?action=getPreguntas', {cache:'no-store'});
+          if (!response.ok) throw new Error('No se pudieron consultar las fuentes.');
+          data = await response.json();
+        }
       }
       if (data && Array.isArray(data.items)) {
         fuentes = [...new Set(data.items.map(x => String(x.fuente || '').trim().toUpperCase()).filter(Boolean))].sort();
