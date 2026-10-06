@@ -1861,10 +1861,17 @@ async function abrirDetalleAlumno(alumnoId) {
           </label>
           <div class="det-asig-body" id="${bloqueId}-body" style="display:${tiene ? 'block' : 'none'};padding-left:26px;">
             <label style="font-size:13px;">Modo de acceso</label>
-            <select class="det-asig-modo" onchange="onCambioModoDetalleAsignatura('${asig.id}')">
-              <option value="supervisado" ${modo==='supervisado'?'selected':''}>Supervisado (solo exámenes del profesor)</option>
-              <option value="autonomo" ${modo==='autonomo'?'selected':''}>Autónomo (puede generarse sus propios exámenes)</option>
+            <div class="det-modo-botones" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+              <button type="button" class="btn det-modo-btn ${modo==='supervisado'?'btn-primary':'btn-secondary'}" data-modo="supervisado" onclick="setModoDetalleAsignatura('${asig.id}','supervisado')">Supervisado</button>
+              <button type="button" class="btn det-modo-btn ${modo==='autonomo'?'btn-primary':'btn-secondary'}" data-modo="autonomo" onclick="setModoDetalleAsignatura('${asig.id}','autonomo')">Autónomo</button>
+            </div>
+            <select class="det-asig-modo" onchange="onCambioModoDetalleAsignatura('${asig.id}')" style="display:none;" aria-hidden="true">
+              <option value="supervisado" ${modo==='supervisado'?'selected':''}>Supervisado</option>
+              <option value="autonomo" ${modo==='autonomo'?'selected':''}>Autónomo</option>
             </select>
+            <div class="det-modo-descripcion" style="font-size:12px;color:#666;margin:-2px 0 10px;">
+              ${modo==='autonomo'?'Puede generar sus propias actividades.':'Solo puede realizar actividades creadas por el profesor.'}
+            </div>
             <div class="det-asig-fuentes-wrap" style="display:${modo==='autonomo'?'block':'none'};margin-top:8px;">
               <label style="font-size:13px;">Fuentes permitidas <span style="color:#888;font-weight:400;font-size:12px;">(vacío = todas)</span></label>
               <div class="det-asig-fuentes-grid" data-fuentes-csv="${fuentesCsv}" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px;">
@@ -1878,7 +1885,8 @@ async function abrirDetalleAlumno(alumnoId) {
     // Para cada asignatura marcada, cargar sus fuentes (si está en modo autónomo)
     for (const asig of asignaturasDisponibles) {
       const acceso = accesos.find(x => x.asignatura === asig.nombre);
-      if (acceso && (acceso.modo || '').toLowerCase() === 'autonomo') {
+      if (acceso && (acceso.modo || '').toLowerCase() === 'autonomo' && (acceso.fuentes || '').trim()) {
+        // Solo cargamos el catálogo si ya había una restricción de fuentes que preservar.
         cargarFuentesParaDetalle(asig);
       }
     }
@@ -1906,17 +1914,45 @@ function toggleDetalleAsignatura(asigId) {
   }
 }
 
+function setModoDetalleAsignatura(asigId, modo) {
+  const card = document.querySelector('[data-asig-id="' + asigId + '"]');
+  if (!card || !['supervisado','autonomo'].includes(modo)) return;
+  const select = card.querySelector('.det-asig-modo');
+  if (select) select.value = modo;
+  card.querySelectorAll('.det-modo-btn').forEach(btn => {
+    const activo = btn.dataset.modo === modo;
+    btn.classList.toggle('btn-primary', activo);
+    btn.classList.toggle('btn-secondary', !activo);
+    btn.setAttribute('aria-pressed', activo ? 'true' : 'false');
+  });
+  const descripcion = card.querySelector('.det-modo-descripcion');
+  if (descripcion) descripcion.textContent = modo === 'autonomo'
+    ? 'Puede generar sus propias actividades.'
+    : 'Solo puede realizar actividades creadas por el profesor.';
+  onCambioModoDetalleAsignatura(asigId);
+}
+
 function onCambioModoDetalleAsignatura(asigId) {
   const card = document.querySelector('[data-asig-id="' + asigId + '"]');
   if (!card) return;
-  const modo = card.querySelector('.det-asig-modo').value;
+  const modo = card.querySelector('.det-asig-modo')?.value || 'supervisado';
   const wrap = card.querySelector('.det-asig-fuentes-wrap');
-  wrap.style.display = modo === 'autonomo' ? 'block' : 'none';
+  if (wrap) wrap.style.display = modo === 'autonomo' ? 'block' : 'none';
+
+  // No consultamos el banco completo al cambiar de modo. En bancos grandes o con
+  // sesión segura (como Fisiología US) esa consulta podía hacer parecer que el
+  // selector se había bloqueado. Las fuentes son opcionales: vacío = todas.
   if (modo === 'autonomo') {
-    const asigs = cargarAsignaturas();
-    const asig = asigs.find(x => x.id === asigId);
-    if (asig) cargarFuentesParaDetalle(asig);
+    const grid = card.querySelector('.det-asig-fuentes-grid');
+    if (grid && !grid.dataset.fuentesCargadas && !grid.dataset.fuentesPendientes) {
+      grid.innerHTML = '<button type="button" class="btn btn-secondary btn-sm" onclick="cargarFuentesDetallePorId(\'' + asigId + '\')">Limitar fuentes (opcional)</button><span style="font-size:12px;color:#888;margin-left:6px;">Sin limitar = todas</span>';
+    }
   }
+}
+
+function cargarFuentesDetallePorId(asigId) {
+  const asig = cargarAsignaturas().find(x => x.id === asigId);
+  if (asig) cargarFuentesParaDetalle(asig);
 }
 
 async function cargarFuentesParaDetalle(asig) {
@@ -1932,15 +1968,20 @@ async function cargarFuentesParaDetalle(asig) {
     try {
       let data;
       if (bancoConSesionV14(asig)) {
-        data = await solicitarBancoV14({action:'getPreguntas'}, asig);
+        data = await solicitarBancoV14({action:'getTemasFuentes'}, asig);
       } else {
-        const response = await fetch(asig.scriptUrl + '?action=getPreguntas');
+        const response = await fetch(asig.scriptUrl + '?action=getTemasFuentes');
         if (!response.ok) throw new Error('No se pudieron consultar las fuentes.');
         data = await response.json();
       }
-      if (!Array.isArray(data)) throw new Error('El banco no devolvió una lista de preguntas.');
-      const preguntas = (Array.isArray(data) ? data.slice(1) : []).map(r => extraerFuenteDesdeRow(r));
-      fuentes = [...new Set(preguntas)].sort();
+      if (data && Array.isArray(data.items)) {
+        fuentes = [...new Set(data.items.map(x => String(x.fuente || '').trim().toUpperCase()).filter(Boolean))].sort();
+      } else if (Array.isArray(data)) {
+        const preguntas = data.slice(1).map(r => extraerFuenteDesdeRow(r));
+        fuentes = [...new Set(preguntas)].sort();
+      } else {
+        throw new Error('El banco no devolvió un catálogo de fuentes válido.');
+      }
       detalleFuentesPorAsignatura[asig.nombre] = fuentes;
     } catch(e) {
       grid.textContent = 'No se pudieron cargar las fuentes. Se conservará la selección anterior.';
@@ -1957,6 +1998,7 @@ async function cargarFuentesParaDetalle(asig) {
     return;
   }
   grid.dataset.fuentesPendientes = '';
+  grid.dataset.fuentesCargadas = '1';
   grid.innerHTML = '';
   fuentes = [...new Set([...fuentes, ...seleccionadas])].sort();
   fuentes.forEach(f => {
