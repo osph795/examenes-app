@@ -1906,13 +1906,9 @@ function toggleDetalleAsignatura(asigId) {
   const body = card.querySelector('.det-asig-body');
   if (check.checked) {
     body.style.display = 'block';
-    // Si ya está en autónomo, cargar fuentes
-    const modoSel = card.querySelector('.det-asig-modo');
-    if (modoSel && modoSel.value === 'autonomo') {
-      const asigs = cargarAsignaturas();
-      const asig = asigs.find(x => x.id === asigId);
-      if (asig) cargarFuentesParaDetalle(asig);
-    }
+    // Mostrar el modo actual sin lanzar consultas al banco. Las fuentes se cargan
+    // solo si el profesor pulsa expresamente «Limitar fuentes».
+    onCambioModoDetalleAsignatura(asigId);
   } else {
     body.style.display = 'none';
   }
