@@ -6422,6 +6422,20 @@ function prepararEntregaV16(){
     tiempo_visible_segundos:Math.round(temporizacionV3.visibleMs/1000),tiempo_fuera_pestana_segundos:Math.round(temporizacionV3.fueraMs/1000),tiempo_medio_pregunta_segundos:respondidas.length?Math.round(respondidas.reduce((s,r)=>s+(r.tiempo_ms||0),0)/respondidas.length/1000):0,
     sistema_penalizacion:puntuacion.sistema,penalizacion_acumulada:puntuacion.penalizacion,puntuacion_neta:puntuacion.puntuacionNeta,nota_bruta:puntuacion.notaBruta,nota_final:puntuacion.notaFinal}};
 }
+async function enviarPaqueteEntregaV16(codigo, paquete) {
+  if (!paquete || !Array.isArray(paquete.filas)) throw new Error('Paquete de entrega no válido.');
+  for (let i=0;i<paquete.filas.length;i+=10) {
+    await guardarBloqueActividadV10('guardarRespuestasBloque','filas',paquete.filas.slice(i,i+10));
+  }
+  const v = await api({action:'verificarEntrega',codigo,esperadas:paquete.filas.length});
+  if (!v?.entrega_completa) {
+    throw new Error(v?.detalle || v?.error || ('Solo se confirmaron '+Number(v?.respuestas_guardadas||0)+' de '+paquete.filas.length+' respuestas.'));
+  }
+  const fin = await api({action:'finalizarExamen',codigo,...(paquete.fin||{})});
+  if (!fin?.ok) throw new Error(fin?.detalle || fin?.error || 'No se confirmó la finalización.');
+  return fin;
+}
+
 async function enviarExamen(forzado=false){
   if(examenEntregandoV3)return;
   if(!entregaPendienteV16){
@@ -6440,19 +6454,9 @@ async function enviarExamen(forzado=false){
   irA('screen-loading');document.getElementById('loading-text').textContent='Guardando y confirmando la entrega…';
   let fase='guardar respuestas';
   try{
-    const paquete=entregaPendienteV16;let fin;
-    if(examenActual.entrega_v16){
-      fin=await api({action:'entregarActividadV16',codigo:examenCodigo,entrega:JSON.stringify(paquete)});
-      if(!fin?.ok)throw new Error(fin?.detalle||fin?.error||'El servidor no confirmó la entrega.');
-      aplicarRespuestasServidorV16(fin.respuestas);
-    }else{
-      // Compatibilidad con bancos anteriores; el paquete permanece fijo entre intentos.
-      for(let i=0;i<paquete.filas.length;i+=10)await guardarBloqueActividadV10('guardarRespuestasBloque','filas',paquete.filas.slice(i,i+10));
-      fase='verificar entrega';const v=await api({action:'verificarEntrega',codigo:examenCodigo,esperadas:paquete.filas.length});
-      if(!v?.entrega_completa)throw new Error(v?.detalle||v?.error||'Todavía faltan respuestas por guardar.');
-      fase='finalizar actividad';fin=await api({action:'finalizarExamen',codigo:examenCodigo,...paquete.fin});
-      if(!fin?.ok)throw new Error(fin?.detalle||fin?.error||'No se confirmó la finalización.');
-    }
+    const paquete=entregaPendienteV16;
+    fase='guardar y verificar entrega';
+    await enviarPaqueteEntregaV16(examenCodigo,paquete);
     localStorage.removeItem(claveProgresoV3());localStorage.removeItem(AUTOGUARDADO_PREFIJO_V3+examenCodigo);
     localStorage.removeItem(claveDescargaV17(examenCodigo,examenActual.alumno_id,asignaturaActual.scriptUrl));
     entregaPendienteV16=null;ultimoErrorEntregaV16='';mostrarResultados(calcularPuntuacionV5());
@@ -6492,7 +6496,7 @@ async function imagenLocalV17(url){
 }
 async function descargarPracticaV17(){
   if(descargaV17||examenEntregandoV3)return;
-  if(modoLocalV17||!alumnoVerificado?.session_token||alumnoAccesoActual?.modo?.toLowerCase()!=='autonomo'||!examenActual||!esPracticaV3()||!examenActual.entrega_v16||entregaPendienteV16){
+  if(modoLocalV17||!alumnoVerificado?.session_token||alumnoAccesoActual?.modo?.toLowerCase()!=='autonomo'||!examenActual||!esPracticaV3()||!bancoConSesionV14()||entregaPendienteV16){
     alert('Abre con conexión una práctica propia en modo autónomo, en un banco V16, antes de descargarla.');return;
   }
   if(!confirm('La práctica y sus respuestas quedarán disponibles sin iniciar sesión en este dispositivo. Descárgala solo en un dispositivo personal. ¿Continuar?'))return;
@@ -6545,7 +6549,7 @@ function mostrarDescargasV17(){
 function abrirLocalV17(d){
   if(sincronizandoV17||examenActual||examenEntregandoV3&&entregaPendienteV16)return;
   if(!MAESTRO_URL&&d.maestro)MAESTRO_URL=d.maestro;
-  if(d.maestro!==MAESTRO_URL||d.actividad.tipo_actividad!=='PRACTICA'||!d.actividad.entrega_v16)throw new Error('Descarga no compatible.');
+  if(d.maestro!==MAESTRO_URL||d.actividad.tipo_actividad!=='PRACTICA')throw new Error('Descarga no compatible.');
   // Esta identidad local NO es una sesión: api() bloquea todas sus solicitudes.
   modoLocalV17=true;asignaturaActual=d.banco;alumnoVerificado={alumno_id:d.alumno,nombre:d.actividad.alumna,local_v17:true};alumnoAccesoActual=null;
   examenActual=JSON.parse(JSON.stringify(d.actividad));examenCodigo=d.codigo;examenEntregandoV3=false;entregaPendienteV16=null;ultimoErrorEntregaV16='';
@@ -6568,18 +6572,17 @@ async function sincronizarV17(){
     for(let i=0;i<localStorage.length;i++){
       const key=localStorage.key(i);if(!key?.startsWith('actividad_v16_'))continue;
       try{const d=JSON.parse(localStorage.getItem(key));
-        if(d.maestro===MAESTRO_URL&&d.banco===banco&&d.alumno_id===alumno&&d.entrega&&(d.offline_v17||localStorage.getItem(claveDescargaV17(d.codigo,alumno,banco))))pendientes.push({key,d,raw:localStorage.getItem(key)});
+        if(d.maestro===MAESTRO_URL&&d.banco===banco&&d.alumno_id===alumno&&d.entrega)pendientes.push({key,d,raw:localStorage.getItem(key)});
       }catch(e){}
     }
     for(const {key,d,raw}of pendientes){
       if(examenActual||modoLocalV17||String(alumnoVerificado?.alumno_id)!==alumno||asignaturaActual?.scriptUrl!==banco)break;
       avisoV17('Sincronizando '+d.codigo+'…');
-      const r=await api({action:'entregarActividadV16',codigo:d.codigo,entrega:JSON.stringify(d.entrega)});
-      if(!r?.ok)throw new Error(r?.error||'No se confirmó la entrega.');
+      await enviarPaqueteEntregaV16(d.codigo,d.entrega);
       if(localStorage.getItem(key)===raw)localStorage.removeItem(key);
       localStorage.removeItem(claveDescargaV17(d.codigo,alumno,banco));total++;
     }
-    avisoV17(total?'Entregas sincronizadas: '+total+'. Consulta el historial.':'No hay entregas descargadas pendientes en esta asignatura.');
+    avisoV17(total?'Entregas sincronizadas: '+total+'. Consulta el historial.':'No hay entregas pendientes en esta asignatura.');
     if(total&&!examenActual)await cargarPendientesV16();
   }catch(e){avisoV17('Entrega pendiente; se conserva en este dispositivo. '+e.message);}
   finally{sincronizandoV17=false;}
