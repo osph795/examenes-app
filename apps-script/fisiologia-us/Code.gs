@@ -2481,7 +2481,15 @@ const BANCO_REPASOS_V15 = false;
 const MAESTRO_URL_V14 = 'https://script.google.com/macros/s/AKfycbyO0xdkuz1Z9sfcOQm-vBkoFZivDYtEC_F1fmflLO-1xJ9rAN_JbPGSjjkQdeMOEIE8Iw/exec';
 
 function doGet(e) {
-  return resp({ok:true, banco:BANCO_NOMBRE_V14, version:'15', requiere_sesion:true, repasos:BANCO_REPASOS_V15});
+  return resp({
+    ok:true,
+    banco:BANCO_NOMBRE_V14,
+    version:'15.1-fus',
+    requiere_sesion:true,
+    repasos:BANCO_REPASOS_V15,
+    spreadsheet_id:SPREADSHEET_ID,
+    diagnostico:'FISIOLOGIA_US_BACKEND_OK'
+  });
 }
 
 function doPost(e) {
