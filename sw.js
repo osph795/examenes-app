@@ -1,4 +1,4 @@
-/* Change VERSION with every release. No skipWaiting: don't interrupt activities. */
+/* Change VERSION with every release. Updates activate immediately; current activities are not force-reloaded. */
 const VERSION='examenes-shell-v17-11';
 const ROOT=new URL('./',self.location.href);
 const INDEX=new URL('index.html',ROOT).href;
