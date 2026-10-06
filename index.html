@@ -1401,7 +1401,12 @@ async function cargarConfigProfesorPublica() {
   // se conservan solo si no existe una asignatura pública con el mismo nombre.
   [...locales, ...(publico.asignaturas || [])].forEach((a, idx) => {
     if (!a || !a.nombre || !a.scriptUrl) return;
-    const idBase = a.id || ('PUB-' + btoa(unescape(encodeURIComponent(a.nombre))).replace(/=+$/,'').slice(0,12));
+    // ID estable y realmente único por nombre. Antes se truncaba el Base64 a 12
+    // caracteres: todas las asignaturas que empezaban por "Fisiología..." acababan
+    // compartiendo el mismo id y los controles actuaban sobre la primera tarjeta.
+    const idPublico = 'PUB-' + btoa(unescape(encodeURIComponent(a.nombre)))
+      .replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+    const idBase = (a.id && !String(a.id).startsWith('PUB-')) ? a.id : idPublico;
     porNombre.set(a.nombre, { id: idBase, nombre: a.nombre, sheetId: a.sheetId || '', scriptUrl: a.scriptUrl, seguridad:a.seguridad || '' });
   });
   const fusionadas = [...porNombre.values()];
