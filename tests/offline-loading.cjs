@@ -43,9 +43,9 @@ const server=http.createServer(async(req,res)=>{
  await page.evaluate(()=>Promise.all([api({action:'getTemasFuentes'}),api({action:'getTemasFuentes'})]));
  assert.equal(calls.length,1,'identical pending reads share one request');
  await page.evaluate(()=>api({action:'getTemasFuentes'}));assert.equal(calls.length,1,'catalog reused');
- await page.evaluate(()=>{for(const e of lecturasSesionV17.values())e.fecha-=31000;return api({action:'getTemasFuentes'});});assert.equal(calls.length,2,'catalog expires');
+ await page.evaluate(()=>{for(const e of lecturasSesionV17.values())e.fecha-=300001;return api({action:'getTemasFuentes'});});assert.equal(calls.length,2,'catalog expires');
  await page.evaluate(()=>{alumnoVerificado.session_token='token-two';return api({action:'getTemasFuentes'});});assert.equal(calls.length,3,'session cannot reuse another catalog');
- await page.evaluate(()=>api({action:'guardarExamen',codigo:'test'}));await page.evaluate(()=>api({action:'getTemasFuentes'}));assert.equal(calls.length,5,'write invalidates catalog');
+ await page.evaluate(()=>api({action:'guardarPregunta',codigo:'test'}));await page.evaluate(()=>api({action:'getTemasFuentes'}));assert.equal(calls.length,5,'write invalidates catalog');
  await page.evaluate(()=>reiniciarLecturasSesionV17());failNext=true;
  assert.equal(await page.evaluate(()=>api({action:'getTemasFuentes'}).then(()=>false,()=>true)),true);
  await page.evaluate(()=>api({action:'getTemasFuentes'}));assert.equal(calls.length,7,'failed read is retryable');

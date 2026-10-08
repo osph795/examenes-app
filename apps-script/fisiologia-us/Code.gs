@@ -23,9 +23,9 @@ const GITHUB_DEFAULT_REPO = 'examenes-imagenes';
 const GITHUB_DEFAULT_BRANCH = 'main';
 const GITHUB_DEFAULT_FOLDER = 'images/fisiologia-us';
 
-function procesarBancoV14_(e) {
+function procesarBancoV14_(e, ssPeticionV18) {
   try {
-    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    const ss = ssPeticionV18 || SpreadsheetApp.openById(SPREADSHEET_ID);
     const action = (e.parameter.action || '').trim();
 
     if (!action) {
@@ -1921,7 +1921,9 @@ function resp(data) {
    RECUPERACIÓN DE PREGUNTAS Y EXPLICACIONES
 ===================================================== */
 
+var indicePreguntasPeticionV18 = null;
 function buildPreguntasIndex(ss) {
+  if (indicePreguntasPeticionV18 !== null) return indicePreguntasPeticionV18;
   const sheet = getSheetOrThrow(ss, 'preguntas');
   const data = sheet.getDataRange().getValues();
 
@@ -1943,6 +1945,7 @@ function buildPreguntasIndex(ss) {
     }
   }
 
+  indicePreguntasPeticionV18 = index;
   return index;
 }
 
@@ -2499,7 +2502,7 @@ function doPost(e) {
     p.action = action;
     const permitidas = ['getRepasos','getPreguntas','getTemasFuentes','getExamen','getExamenesAlumno','getRespuestasAlumno',
       'guardarExamen','guardarPreguntas','guardarRespuestasBloque','registrarInicioExamen','verificarEntrega',
-      'finalizarExamen','validarEditor','guardarPregunta','cambiarEstadoPregunta','listarImagenes','subirImagen','estadoConfiguracionImagenes'];
+      'finalizarExamen','operacionesV18','validarEditor','guardarPregunta','cambiarEstadoPregunta','listarImagenes','subirImagen','estadoConfiguracionImagenes'];
     if (!permitidas.includes(action)) throw new Error('Acción no admitida.');
     if (!p.session_token) return resp({ok:false,codigo:'SESION_INVALIDA',error:'Inicia sesión para acceder al banco.'});
     const response = UrlFetchApp.fetch(MAESTRO_URL_V14, {method:'post',payload:{
@@ -2510,12 +2513,22 @@ function doPost(e) {
     if (usuario.ok !== true || usuario.banco !== BANCO_NOMBRE_V14 || !['profesor','alumno'].includes(usuario.rol)) {
       return resp({ok:false,codigo:usuario.codigo || 'ACCESO_DENEGADO',error:usuario.error || 'Acceso denegado.'});
     }
+    indicePreguntasPeticionV18 = null;
     const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    if (action === 'operacionesV18') return ejecutarOperacionesV18_(p,usuario,ss);
+    return procesarAutorizadaV18_(p,usuario,ss);
+  } catch (err) {
+    return resp({ok:false,error:String(err.message || err)});
+  }
+}
+
+function procesarAutorizadaV18_(p,usuario,ss) {
+    const action = norm(p.action);
     const esProfesor = usuario.rol === 'profesor';
     const edicion = ['validarEditor','guardarPregunta','cambiarEstadoPregunta','listarImagenes','subirImagen','estadoConfiguracionImagenes'];
     if (edicion.includes(action)) {
       if (!esProfesor) throw new Error('Esta operación requiere acceso de profesor.');
-      if (action === 'estadoConfiguracionImagenes') return procesarBancoV14_({parameter:p});
+      if (action === 'estadoConfiguracionImagenes') return procesarBancoV14_({parameter:p},ss);
       return procesarEditorV14_({parameter:p});
     }
     if (!esProfesor) comprobarPermisosAlumnoV14_(ss,p,usuario);
@@ -2534,20 +2547,43 @@ function doPost(e) {
           if (Number(existente[5])!==Number(p.num_preguntas) || norm(existente[4])!==norm(p.temas)) throw new Error('El código ya corresponde a otra configuración.');
           return resp({ok:true,codigo_guardado:p.codigo,ya_existente:true});
         }
-        return procesarBancoV14_({parameter:p});
+        return procesarBancoV14_({parameter:p},ss);
       } finally { lock.releaseLock(); }
     }
-    let data = JSON.parse(procesarBancoV14_({parameter:p}).getContent());
+    let data = JSON.parse(procesarBancoV14_({parameter:p},ss).getContent());
     if (!esProfesor && !data.error) {
       if (action === 'getPreguntas' && data.length) {
         data = [data[0]].concat(data.slice(1).filter((r,i)=>fuentePermitidaV14_(usuario,normalizarPreguntaResumen_(r,i))));
       }
       if (action === 'getTemasFuentes') data.items = (data.items || []).filter(item=>fuentePermitidaV14_(usuario,item));
     }
+    if (['getTemasFuentes','getExamen'].includes(action) && !data.error) data.capacidades_v18 = ['operaciones'];
     return resp(data);
-  } catch (err) {
-    return resp({ok:false,error:String(err.message || err)});
+}
+
+// Una validación de sesión por petición; cada operación mantiene sus permisos,
+// bloqueos e idempotencia. No es una transacción: el cliente conserva el paquete
+// y puede repetirlo entero si se pierde la respuesta o falla un paso intermedio.
+function ejecutarOperacionesV18_(p,usuario,ss) {
+  const operaciones = JSON.parse(p.operaciones || '[]');
+  const admitidas = ['guardarExamen','guardarPreguntas','getExamen','registrarInicioExamen',
+    'guardarRespuestasBloque','verificarEntrega','finalizarExamen'];
+  if (!Array.isArray(operaciones) || !operaciones.length || operaciones.length>32 ||
+      operaciones.some(op=>!op || !admitidas.includes(norm(op.action)))) {
+    throw new Error('Paquete de operaciones no válido.');
   }
+  const resultados=[];
+  for (let i=0;i<operaciones.length;i++) {
+    const op=Object.assign({},operaciones[i]);
+    op.action=norm(op.action);
+    const data=JSON.parse(procesarAutorizadaV18_(op,usuario,ss).getContent());
+    if (!data || data.error || data.ok===false ||
+        (op.action==='verificarEntrega' && !data.entrega_completa)) {
+      return resp({ok:false,paso:i,action:op.action,error:data && (data.detalle||data.error)||'Operación no confirmada.'});
+    }
+    resultados.push(data);
+  }
+  return resp({ok:true,resultados});
 }
 
 function filasBancoV14_(ss,nombre) {

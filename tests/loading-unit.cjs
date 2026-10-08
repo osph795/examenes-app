@@ -6,14 +6,14 @@ const source=name=>{const matches=[...html.matchAll(new RegExp('(?:async )?funct
 const bank={nombre:'Test',scriptUrl:'https://example.test/bank'};
 let calls=[],fail=false,clock=100000;
 const ctx=vm.createContext({URL,Map,JSON,console,Date:{now:()=>clock},window:{location:{href:'https://example.test/'},_asignaturasPublicas:[bank]},MAESTRO_URL:'master',asignaturaActual:bank,alumnoVerificado:{session_token:'one'},cargarAsignaturas:()=>[],sessionStorage:{getItem:()=>null},solicitarBancoRedV17:async(p,b,t)=>{calls.push({p,b,t});await new Promise(r=>setTimeout(r,5));if(fail){fail=false;throw Error('failed');}return {items:[t]};}});
-vm.runInContext("const lecturasSesionV17=new Map();let contextoLecturasV17='',revisionLecturasV17=0;"+source('reiniciarLecturasSesionV17')+source('solicitarBancoV14')+source('normalizarUrlImagenV3')+source('escaparHtmlV3')+source('crearBloqueImagenPregunta'),ctx);
+vm.runInContext("const capacidadesBancoV18=new Map();const lecturasSesionV17=new Map();let contextoLecturasV17='',revisionLecturasV17=0;"+source('reiniciarLecturasSesionV17')+source('vigenciaLecturaV18')+source('solicitarBancoV14')+source('normalizarUrlImagenV3')+source('escaparHtmlV3')+source('crearBloqueImagenPregunta'),ctx);
 const api=p=>ctx.solicitarBancoV14(p);
 (async()=>{
  await Promise.all([api({action:'getTemasFuentes'}),api({action:'getTemasFuentes'})]);assert.equal(calls.length,1);
  await api({action:'getTemasFuentes'});assert.equal(calls.length,1);
- clock+=31000;await api({action:'getTemasFuentes'});assert.equal(calls.length,2);
+ clock+=300001;await api({action:'getTemasFuentes'});assert.equal(calls.length,2);
  ctx.alumnoVerificado.session_token='two';assert.equal((await api({action:'getTemasFuentes'})).items[0],'two');assert.equal(calls.length,3);
- await api({action:'guardarExamen'});await api({action:'getTemasFuentes'});assert.equal(calls.length,5);
+ await api({action:'guardarPregunta'});await api({action:'getTemasFuentes'});assert.equal(calls.length,5);
  await api({action:'getExamen',codigo:'A'});await api({action:'getExamen',codigo:'A'});assert.equal(calls.length,7,'exam state never cached');
  ctx.reiniciarLecturasSesionV17();fail=true;await assert.rejects(api({action:'getTemasFuentes'}));await api({action:'getTemasFuentes'});assert.equal(calls.length,9);
  ctx.reiniciarLecturasSesionV17();const pending=api({action:'getTemasFuentes'});ctx.reiniciarLecturasSesionV17();await pending;await api({action:'getTemasFuentes'});assert.equal(calls.length,11,'invalidated pending read cannot refill cache');

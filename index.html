@@ -381,6 +381,7 @@
 <button class="btn btn-secondary btn-sm" onclick="mostrarDescargasV17()">Descargas</button>
 <button class="btn btn-secondary btn-sm" onclick="descargarPracticaV17()">Descargar práctica</button>
 <button class="btn btn-secondary btn-sm" onclick="sincronizarV17()">Sincronizar entregas</button>
+<button class="btn btn-secondary btn-sm" onclick="copiarDiagnosticoVelocidadV18()">Diagnóstico de velocidad</button>
 <p id="estado-v17" role="status" aria-live="polite">Móvil · V17.2</p>
 </div>
 <div id="screen-descargas-v17" class="screen"><div class="inner">
@@ -1581,6 +1582,36 @@ let configPublicaV11 = null;
 let configPublicaEnCursoV11 = null;
 const lecturasEnCursoV11 = new Map();
 const lecturasCacheV11 = new Map();
+const tiemposRedV18 = [];
+async function medirRedV18(etapa, tarea) {
+  const inicio = performance.now();
+  let correcta = false;
+  try { const dato = await tarea(); correcta = !(dato?.error || dato?.ok === false); return dato; }
+  finally {
+    tiemposRedV18.push({operacion:etapa,ms:Math.round(performance.now()-inicio),correcta});
+    if (tiemposRedV18.length > 60) tiemposRedV18.shift();
+  }
+}
+async function copiarDiagnosticoVelocidadV18() {
+  const texto = JSON.stringify({version:'17.18',peticiones:tiemposRedV18},null,2);
+  try { await navigator.clipboard.writeText(texto); alert('Diagnóstico copiado. Pégalo en el chat. Solo contiene operaciones y tiempos; no incluye PIN, nombres ni respuestas.'); }
+  catch(e) { alert(texto); }
+}
+
+// Limitar por tamaño real del formulario, además del número de filas.
+function dividirBloquesV18(filas, maxFilas=50, maxBytes=180000) {
+  const bloques=[]; let bloque=[], bytes=6;
+  for (const fila of filas) {
+    const longitud = new URLSearchParams({v:JSON.stringify(fila)}).toString().length+3;
+    if (bloque.length && (bloque.length>=maxFilas || bytes+longitud>maxBytes)) {
+      bloques.push(bloque); bloque=[]; bytes=6;
+    }
+    bloque.push(fila); bytes+=longitud;
+  }
+  if (bloque.length) bloques.push(bloque);
+  return bloques;
+}
+
 async function api(params) {
   if(typeof modoLocalV17!=='undefined'&&modoLocalV17)throw new Error('Estás en una copia local. Inicia sesión con conexión para acceder al banco.');
   if (bancoConSesionV14()) return solicitarBancoV14(params);
@@ -1647,6 +1678,39 @@ async function solicitarJsonActividadV10(url, accion, opciones) {
 }
 
 // Divide por longitud real de URL, no solo por número de preguntas.
+const capacidadesBancoV18 = new Map();
+function admiteOperacionesV18() {
+  return bancoConSesionV14() && capacidadesBancoV18.get(asignaturaActual?.scriptUrl) === true;
+}
+function paqueteOperacionesV18(operaciones) {
+  if (!admiteOperacionesV18() || operaciones.length>32) return null;
+  const params={action:'operacionesV18',operaciones:JSON.stringify(operaciones)};
+  return new URLSearchParams(params).toString().length<=800000 ? params : null;
+}
+async function guardarActividadV18(meta,seleccionadas,btn,abrir=false) {
+  const empaquetadas=seleccionadas.map(empaquetarPreguntaV3);
+  const compactas=admiteOperacionesV18() && alumnoVerificado
+    ? seleccionadas.map(p=>({id:p.id})) : empaquetadas;
+  const operaciones=[{action:'guardarExamen',...meta},
+    ...dividirBloquesV18(compactas).map(b=>({action:'guardarPreguntas',codigo:meta.codigo,preguntas:JSON.stringify(b)}))];
+  if (abrir) operaciones.push({action:'registrarInicioExamen',codigo:meta.codigo},{action:'getExamen',codigo:meta.codigo});
+  const paquete=paqueteOperacionesV18(operaciones);
+  if (paquete) {
+    btn.textContent='Preparando actividad…';
+    const respuesta=await api(paquete);
+    if (!respuesta?.ok || respuesta.resultados?.length!==operaciones.length) throw new Error('El banco no confirmó toda la actividad.');
+    return abrir ? respuesta.resultados.at(-1) : null;
+  }
+  await api({action:'guardarExamen',...meta});
+  const bloques=dividirBloquesV18(empaquetadas,bancoConSesionV14()?50:BLOQUE_SIZE);
+  for (let b=0;b<bloques.length;b++) {
+    btn.textContent=`Guardando preguntas ${b+1}/${bloques.length}...`;
+    await guardarBloqueActividadV10('guardarPreguntas','preguntas',bloques[b],{codigo:meta.codigo});
+    if (!bancoConSesionV14()) await esperar(200);
+  }
+  return null;
+}
+
 async function guardarBloqueActividadV10(accion, campo, filas, extras={}) {
   if (bancoConSesionV14()) return solicitarBancoV14({action:accion,...extras,[campo]:JSON.stringify(filas)});
   const params = {action:accion, ...extras, [campo]:JSON.stringify(filas)};
@@ -1673,6 +1737,10 @@ async function apiUrl(url) {
 
 // Llamadas al Apps Script MAESTRO (tabla central de alumnos)
 async function apiMaestro(params) {
+  return medirRedV18('maestro:'+params.action,()=>apiMaestroRedV18(params));
+}
+
+async function apiMaestroRedV18(params) {
   if (!MAESTRO_URL) throw new Error('Falta configurar la URL del maestro.');
   const claveSesion = 'profesor_v13_' + MAESTRO_URL;
   const datos = {...params};
@@ -2281,6 +2349,7 @@ async function initTemasGrid() {
       fuentesGrid.appendChild(div);
     });
     actualizarMsgPriorizacion();
+    if (bancoConSesionV14()) cargarPreguntas().catch(() => {});
   } catch(e) {
     if (asignaturaActual?.scriptUrl !== origen) return;
     contenedor.textContent = 'No se pudieron cargar los temas: ' + e.message;
@@ -2947,6 +3016,7 @@ async function initAlumnoTemasGrid() {
       fg.appendChild(div);
     });
     actualizarMsgPriorizacionAlumno();
+    if (bancoConSesionV14()) cargarPreguntas().catch(() => {});
   } catch(e) {
     if (asignaturaActual?.scriptUrl !== origen) return;
     contenedor.textContent = 'No se pudieron cargar los temas: ' + e.message;
@@ -4223,15 +4293,7 @@ async function generarExamen() {
     const codigo = generarCodigo();
     const fecha = new Date().toISOString();
     btn.textContent = 'Guardando actividad...';
-    const guardado = await api({ action:'guardarExamen', codigo, fecha, alumno_id:alumnoId, alumna:alumno.nombre, temas:temasSeleccionados.join(','), num_preguntas:seleccionadas.length, ...cfg });
-    if (guardado?.error) throw new Error(guardado.error);
-    const bloques = [];
-    for (let i=0; i<seleccionadas.length; i+=BLOQUE_SIZE) bloques.push(seleccionadas.slice(i,i+BLOQUE_SIZE));
-    for (let b=0; b<bloques.length; b++) {
-      btn.textContent = `Guardando preguntas ${b+1}/${bloques.length}...`;
-      await guardarBloqueActividadV10('guardarPreguntas', 'preguntas', bloques[b].map(empaquetarPreguntaV3), {codigo});
-      await esperar(200);
-    }
+    await guardarActividadV18({codigo,fecha,alumno_id:alumnoId,alumna:alumno.nombre,temas:temasSeleccionados.join(','),num_preguntas:seleccionadas.length,...cfg},seleccionadas,btn);
     const enlace = BASE_URL + '?examen=' + codigo + '&su=' + encodeURIComponent(asignaturaActual.scriptUrl);
     document.getElementById('enlace-generado').value = enlace;
     const nombreTipo = {PRACTICA:'Práctica guiada',SIMULACRO:'Simulacro',EXAMEN:'Examen'}[cfg.tipo_actividad];
@@ -4279,15 +4341,9 @@ async function generarExamenAlumno() {
       permitir_volver:'SI', mostrar_mapa:'SI', permitir_marcar:'SI', mezclar_preguntas:'SI',
       sistema_penalizacion: tipoActividadAlumnoV3 === 'PRACTICA' ? 'SIN_PENALIZACION' : 'ADAPTADA_OPCIONES'
     };
-    await api({ action:'guardarExamen', codigo, fecha:new Date().toISOString(), alumno_id:a.alumno_id, alumna:a.nombre, temas:temasSeleccionados.join(','), num_preguntas:seleccionadas.length, ...cfg });
-    const bloques=[]; for(let i=0;i<seleccionadas.length;i+=BLOQUE_SIZE) bloques.push(seleccionadas.slice(i,i+BLOQUE_SIZE));
-    for(let b=0;b<bloques.length;b++) {
-      btn.textContent=`Guardando preguntas ${b+1}/${bloques.length}...`;
-      await guardarBloqueActividadV10('guardarPreguntas', 'preguntas', bloques[b].map(empaquetarPreguntaV3), {codigo});
-      await esperar(200);
-    }
+    const actividadConfirmada=await guardarActividadV18({codigo,fecha:new Date().toISOString(),alumno_id:a.alumno_id,alumna:a.nombre,temas:temasSeleccionados.join(','),num_preguntas:seleccionadas.length,...cfg},seleccionadas,btn,true);
     btn.disabled=false; btn.textContent='Empezar actividad';
-    await iniciarExamen(codigo, {config:cfg, preguntas:seleccionadas});
+    await iniciarExamen(codigo, {config:cfg, preguntas:seleccionadas, actividadConfirmada});
   } catch(e) {
     alert('Error al generar la actividad: ' + (e?.message || e));
     console.error(e);
@@ -4349,7 +4405,7 @@ async function iniciarExamen(codigo, origen=null) {
   detenerCronometrosV3();
   irA('screen-loading'); document.getElementById('loading-text').textContent='Cargando actividad...';
   try {
-    const data=await api({action:'getExamen',codigo});
+    const data=origen?.actividadConfirmada || await api({action:'getExamen',codigo});
     if(data.error) throw new Error(data.detalle||data.error);
     if(String(data.completado||'NO').toUpperCase()==='SI') {
       localStorage.removeItem(claveDescargaV17(codigo,data.alumno_id,asignaturaActual.scriptUrl));
@@ -6175,9 +6231,15 @@ function bancoConSesionV14(banco = asignaturaActual) {
 // Solo memoria de esta pestaña: nunca persistir sesiones ni respuestas de la API.
 const lecturasSesionV17 = new Map();
 let contextoLecturasV17 = '', revisionLecturasV17 = 0;
-function reiniciarLecturasSesionV17() {
-  lecturasSesionV17.clear();
+function reiniciarLecturasSesionV17(conservarBanco=false) {
+  for (const [key,entrada] of lecturasSesionV17) {
+    if (!conservarBanco || !entrada.data || !['getPreguntas','getTemasFuentes'].includes(entrada.action)) lecturasSesionV17.delete(key);
+  }
   revisionLecturasV17++;
+}
+
+function vigenciaLecturaV18(action) {
+  return ({getTemasFuentes:300000,getPreguntas:120000,getExamenesAlumno:15000,getRepasos:15000})[action] || 0;
 }
 
 async function solicitarBancoV14(params, banco = asignaturaActual) {
@@ -6196,21 +6258,23 @@ async function solicitarBancoV14(params, banco = asignaturaActual) {
     reiniciarLecturasSesionV17();
     contextoLecturasV17 = contexto;
   }
-  const lectura = ['getPreguntas','getTemasFuentes','getExamen','getExamenesAlumno','getRespuestasAlumno','getRepasos'].includes(params.action);
+  const lectura = ['getPreguntas','getTemasFuentes','getExamen','getExamenesAlumno','getRespuestasAlumno','getRepasos','verificarEntrega'].includes(params.action);
   if (!lectura) {
-    reiniciarLecturasSesionV17();
+    reiniciarLecturasSesionV17(['guardarExamen','guardarPreguntas','guardarRespuestasBloque','registrarInicioExamen','finalizarExamen','operacionesV18'].includes(params.action));
     return solicitarBancoRedV17(params,banco,token);
   }
   const key = JSON.stringify(Object.keys(params).sort().map(k => [k,params[k]]));
   const anterior = lecturasSesionV17.get(key);
   if (anterior?.promesa) return anterior.promesa;
-  // Únicamente el catálogo de temas se reutiliza durante 30 s, dentro de la
-  // misma sesión. Preguntas, permisos del servidor y actividades no se cachean.
-  if (anterior?.data && Date.now()-anterior.fecha < 30000) return anterior.data;
+  // Reutilizar lecturas durante esta sesión; cada escritura vuelve a comprobar
+  // permisos y preguntas canónicas en el servidor. Nunca cachear getExamen.
+  const ttl = vigenciaLecturaV18(params.action);
+  if (ttl && anterior?.data && Date.now()-anterior.fecha < ttl) return anterior.data;
   const revision = revisionLecturasV17;
-  const entrada = {};
+  const entrada = {action:params.action};
   entrada.promesa = solicitarBancoRedV17(params,banco,token).then(data => {
-    if (revision === revisionLecturasV17 && params.action === 'getTemasFuentes') {
+    if (Array.isArray(data?.capacidades_v18)) capacidadesBancoV18.set(banco.scriptUrl,data.capacidades_v18.includes('operaciones'));
+    if (revision === revisionLecturasV17 && ttl) {
       entrada.data = data; entrada.fecha = Date.now();
     }
     return data;
@@ -6223,20 +6287,24 @@ async function solicitarBancoV14(params, banco = asignaturaActual) {
 }
 
 async function solicitarBancoRedV17(params,banco,token) {
+  return medirRedV18('banco:'+params.action,()=>solicitarBancoSinMedirV18(params,banco,token));
+}
+
+async function solicitarBancoSinMedirV18(params,banco,token) {
   const accion = String(params?.action || '');
   // Estas operaciones son idempotentes en los bancos V14/V15: si el servidor llegó
   // a guardar la petición pero Safari perdió la respuesta, repetirla no duplica datos.
   const reintentable = [
     'getPreguntas','getTemasFuentes','getExamen','getExamenesAlumno','getRespuestasAlumno',
     'guardarExamen','guardarPreguntas','guardarRespuestasBloque','registrarInicioExamen',
-    'verificarEntrega','finalizarExamen'
+    'verificarEntrega','finalizarExamen','operacionesV18'
   ].includes(accion);
   const maxIntentos = reintentable ? 3 : 1;
   let ultimoError = null;
 
   for (let intento = 0; intento < maxIntentos; intento++) {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 30000);
+    const timer = setTimeout(() => controller.abort(), accion==='operacionesV18'?60000:30000);
     try {
       const response = await fetch(banco.scriptUrl, {
         method:'POST',
@@ -6484,8 +6552,22 @@ function prepararEntregaV16(){
 }
 async function enviarPaqueteEntregaV16(codigo, paquete) {
   if (!paquete || !Array.isArray(paquete.filas)) throw new Error('Paquete de entrega no válido.');
-  for (let i=0;i<paquete.filas.length;i+=10) {
-    await guardarBloqueActividadV10('guardarRespuestasBloque','filas',paquete.filas.slice(i,i+10));
+  const bloques = dividirBloquesV18(paquete.filas,bancoConSesionV14()?100:10);
+  const operaciones=[...bloques.map(b=>({action:'guardarRespuestasBloque',filas:JSON.stringify(b)})),
+    {action:'verificarEntrega',codigo,esperadas:paquete.filas.length},
+    {action:'finalizarExamen',codigo,...(paquete.fin||{})}];
+  const agrupado=paqueteOperacionesV18(operaciones);
+  if (agrupado) {
+    const resultado=await api(agrupado);
+    const respuestas=resultado?.resultados;
+    if (!resultado?.ok || respuestas?.length!==operaciones.length ||
+        !respuestas.at(-2)?.entrega_completa || !respuestas.at(-1)?.ok) {
+      throw new Error('El banco no confirmó la entrega completa. Se conserva para reintentar.');
+    }
+    return respuestas.at(-1);
+  }
+  for (const bloque of bloques) {
+    await guardarBloqueActividadV10('guardarRespuestasBloque','filas',bloque);
   }
   const v = await api({action:'verificarEntrega',codigo,esperadas:paquete.filas.length});
   if (!v?.entrega_completa) {
