@@ -1,5 +1,5 @@
 /* Change VERSION with every release. Updates activate immediately; current activities are not force-reloaded. */
-const VERSION='examenes-shell-v17-16';
+const VERSION='examenes-shell-v17-17';
 const ROOT=new URL('./',self.location.href);
 const INDEX=new URL('index.html',ROOT).href;
 const SHELL=['index.html','manifest.webmanifest','icons/icon-192.png','icons/icon-512.png'].map(p=>new URL(p,ROOT).href);
