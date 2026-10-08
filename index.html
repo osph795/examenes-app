@@ -2302,11 +2302,13 @@ async function calcularPriorizacion(alumnoId, temasSeleccionados) {
     return {...datos,srs:true};
   }
   try {
-    const respuestas = await api({ action: 'getRespuestasAlumno', alumno_id: alumnoId });
+    const [respuestas, examenes] = await Promise.all([
+      api({ action: 'getRespuestasAlumno', alumno_id: alumnoId }),
+      api({ action: 'getExamenesAlumno', alumno_id: alumnoId })
+    ]);
     if (!Array.isArray(respuestas) || respuestas.length === 0) return null;
 
     // Contar exámenes completados por este alumno
-    const examenes = await api({ action: 'getExamenesAlumno', alumno_id: alumnoId });
     if (!Array.isArray(examenes) || examenes.filter(e => e.completado === 'SI').length < 2) return null;
 
     // Calcular ratio por concepto dentro de los temas seleccionados
@@ -2620,6 +2622,8 @@ async function seleccionarAsignaturaYLanzarExamen(idx) {
 }
 
 function salirAlumno() {
+  reiniciarLecturasSesionV17();
+  contextoLecturasV17 = '';
   pinVerificado = false;
   alumnoVerificado = null;
   alumnoAccesoActual = null;
@@ -2688,6 +2692,10 @@ function mostrarMenuAlumno() {
 
   opciones.innerHTML = html;
   irA('screen-alumno-menu');
+  if (esAutonomo && bancoConSesionV14()) {
+    // Adelantar el catálogo mientras el alumno decide qué actividad abrir.
+    cargarResumenTemasV11().catch(() => {});
+  }
 }
 
 // ═══════════════════════════════════════════════════════
@@ -4030,6 +4038,8 @@ function textoHtmlV3(v) {
 function normalizarUrlImagenV3(v) {
   const raw = String(v || '').trim();
   if (!raw) return '';
+  // Las descargas incorporan imágenes raster como data URLs. No aceptar HTML/SVG.
+  if (/^data:image\/(?:png|jpe?g|gif|webp|avif|bmp|x-icon|vnd\.microsoft\.icon);base64,[a-z0-9+/]+={0,2}$/i.test(raw)) return raw;
   try {
     const url = new URL(raw, window.location.href);
     if (!['http:', 'https:'].includes(url.protocol)) return '';
@@ -4199,13 +4209,14 @@ async function generarExamen() {
   const btn = document.getElementById('btn-generar');
   btn.disabled = true; btn.textContent = 'Cargando preguntas...';
   try {
-    const preguntas = await cargarPreguntas();
+    const [preguntas, pesos] = await Promise.all([
+      cargarPreguntas(), calcularPriorizacion(alumnoId, temasSeleccionados)
+    ]);
     const fuentesSeleccionadas = [...document.querySelectorAll('#fuentes-grid .tema-check.selected')].map(el => el.dataset.fuente);
     if (!fuentesSeleccionadas.length) throw new Error('Selecciona al menos una fuente de preguntas.');
     const filtradas = preguntas.filter(p => temasSeleccionados.includes(p.tema) && fuentesSeleccionadas.includes(p.fuente));
     if (!filtradas.length) throw new Error('No hay preguntas para los temas y fuentes seleccionados.');
     btn.textContent = 'Calculando priorización...';
-    const pesos = await calcularPriorizacion(alumnoId, temasSeleccionados);
     let seleccionadas = aplicarPriorizacion(filtradas, pesos, Math.min(numPreguntas, filtradas.length), document.getElementById('prof-modo-repaso').value);
     validarSeleccionRepasosV15(seleccionadas);
     if (cfg.mezclar_preguntas === 'SI') seleccionadas = seleccionadas.slice().sort(() => Math.random() - 0.5);
@@ -4247,13 +4258,14 @@ async function generarExamenAlumno() {
   const btn = document.getElementById('alumno-btn-generar');
   btn.disabled = true; btn.textContent = 'Preparando actividad...';
   try {
-    const preguntas = await cargarPreguntas();
+    const [preguntas, pesos] = await Promise.all([
+      cargarPreguntas(), calcularPriorizacion(a.alumno_id, temasSeleccionados)
+    ]);
     const acceso = alumnoAccesoActual || {};
     const permitidas = (acceso.fuentes || '').split(',').map(s => s.trim()).filter(Boolean);
     const fuentesFinales = permitidas.length ? fuentesSeleccionadas.filter(f => permitidas.includes(f)) : fuentesSeleccionadas;
     const filtradas = preguntas.filter(p => temasSeleccionados.includes(p.tema) && fuentesFinales.includes(p.fuente));
     if (!filtradas.length) throw new Error('No hay preguntas para los temas y fuentes seleccionados.');
-    const pesos = await calcularPriorizacion(a.alumno_id, temasSeleccionados);
     let seleccionadas = aplicarPriorizacion(filtradas, pesos, Math.min(numPreguntas, filtradas.length), document.getElementById('alumno-modo-repaso').value);
     validarSeleccionRepasosV15(seleccionadas);
     seleccionadas = seleccionadas.slice().sort(() => Math.random() - 0.5);
@@ -4382,7 +4394,13 @@ async function iniciarExamen(codigo, origen=null) {
     if(!esPracticaV3()&&Number.isFinite(inicioServidor))temporizacionV3.inicioMs=inicioServidor;
     aplicarRespuestasServidorV16(data.respuestas_guardadas);
     if(!restaurado) estadoPreguntasV3[0].visitas=1; else estadoPreguntasV3[indicePreguntaActualV3].visitas=(estadoPreguntasV3[indicePreguntaActualV3].visitas||0)+1;
-    try { await api({action:'registrarInicioExamen',codigo,hora_inicio:new Date(temporizacionV3.inicioMs).toISOString()}); } catch(e) {}
+    // Una actividad ya iniciada no necesita otra escritura. Las prácticas pueden
+    // mostrarse mientras se registra su inicio; los exámenes nuevos esperan.
+    if (!Number.isFinite(inicioServidor)) {
+      const registro = api({action:'registrarInicioExamen',codigo,hora_inicio:new Date(temporizacionV3.inicioMs).toISOString()})
+        .catch(e => console.warn('No se pudo registrar el inicio de la actividad', e.message));
+      if (!esPracticaV3()) await registro;
+    }
     irA('screen-examen'); renderizarExamen(); iniciarCronometrosV3(); guardarEstadoLocalV3(false);
   } catch(e) {
     alert('Error al cargar la actividad: '+(e?.message||e));
@@ -6141,6 +6159,8 @@ function seleccionarImagenBibliotecaV9(url, nombre) {
 }
 
 async function cerrarSesionProfesorV13() {
+  reiniciarLecturasSesionV17();
+  contextoLecturasV17 = '';
   const cierre = apiMaestro({action:'cerrarSesionProfesor'}).catch(() => {});
   sessionStorage.removeItem('profesor_v13_' + MAESTRO_URL);
   localStorage.removeItem(PROFESOR_KEY);
@@ -6150,6 +6170,14 @@ async function cerrarSesionProfesorV13() {
 
 function bancoConSesionV14(banco = asignaturaActual) {
   return banco?.nombre === 'MIR' || banco?.seguridad === 'sesion-v14';
+}
+
+// Solo memoria de esta pestaña: nunca persistir sesiones ni respuestas de la API.
+const lecturasSesionV17 = new Map();
+let contextoLecturasV17 = '', revisionLecturasV17 = 0;
+function reiniciarLecturasSesionV17() {
+  lecturasSesionV17.clear();
+  revisionLecturasV17++;
 }
 
 async function solicitarBancoV14(params, banco = asignaturaActual) {
@@ -6163,6 +6191,38 @@ async function solicitarBancoV14(params, banco = asignaturaActual) {
     : sessionStorage.getItem('profesor_v13_' + MAESTRO_URL);
   if (!token) throw new Error('Vuelve a entrar con tu PIN o con tu contraseña para activar la sesión del banco.');
 
+  const contexto = JSON.stringify([MAESTRO_URL,banco.nombre,banco.scriptUrl,token]);
+  if (contextoLecturasV17 !== contexto) {
+    reiniciarLecturasSesionV17();
+    contextoLecturasV17 = contexto;
+  }
+  const lectura = ['getPreguntas','getTemasFuentes','getExamen','getExamenesAlumno','getRespuestasAlumno','getRepasos'].includes(params.action);
+  if (!lectura) {
+    reiniciarLecturasSesionV17();
+    return solicitarBancoRedV17(params,banco,token);
+  }
+  const key = JSON.stringify(Object.keys(params).sort().map(k => [k,params[k]]));
+  const anterior = lecturasSesionV17.get(key);
+  if (anterior?.promesa) return anterior.promesa;
+  // Únicamente el catálogo de temas se reutiliza durante 30 s, dentro de la
+  // misma sesión. Preguntas, permisos del servidor y actividades no se cachean.
+  if (anterior?.data && Date.now()-anterior.fecha < 30000) return anterior.data;
+  const revision = revisionLecturasV17;
+  const entrada = {};
+  entrada.promesa = solicitarBancoRedV17(params,banco,token).then(data => {
+    if (revision === revisionLecturasV17 && params.action === 'getTemasFuentes') {
+      entrada.data = data; entrada.fecha = Date.now();
+    }
+    return data;
+  }).finally(() => {
+    delete entrada.promesa;
+    if (!entrada.data && lecturasSesionV17.get(key) === entrada) lecturasSesionV17.delete(key);
+  });
+  lecturasSesionV17.set(key,entrada);
+  return entrada.promesa;
+}
+
+async function solicitarBancoRedV17(params,banco,token) {
   const accion = String(params?.action || '');
   // Estas operaciones son idempotentes en los bancos V14/V15: si el servidor llegó
   // a guardar la petición pero Safari perdió la respuesta, repetirla no duplica datos.
@@ -6511,7 +6571,9 @@ async function descargarPracticaV17(){
     const imagenes=new Map();
     async function convertir(url){if(!imagenes.has(url))imagenes.set(url,await imagenLocalV17(url));return imagenes.get(url);}
     for(const p of actividad.preguntas){
-      if(p.imagen_url)p.imagen_url=await convertir(p.imagen_url);
+      for(const campo of ['imagen_url','image_url','imagen']) {
+        if(p[campo])p[campo]=await convertir(p[campo]);
+      }
       for(const key of Object.keys(p)){
         if(typeof p[key]!=='string'||!/<img\b/i.test(p[key]))continue;
         const doc=new DOMParser().parseFromString(p[key],'text/html');
@@ -6606,6 +6668,9 @@ window.addEventListener('load',async()=>{
   }catch(e){avisoV17('No se pudo preparar el acceso sin conexión: '+e.message);}
 });
 
+
+// Preparar la configuración pública antes de pulsar «Alumno».
+cargarAsignaturasPublicas().catch(() => {});
 </script>
 </body>
 </html>
