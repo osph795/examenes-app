@@ -12,10 +12,11 @@ class Sheet{
   setValue(v){return this.setValues([[v]]);},setValues(rows){for(let i=0;i<n;i++){self.rows[r+i-1]??=[];for(let j=0;j<m;j++)self.rows[r+i-1][c+j-1]=rows[i][j];}return this;}
  };}
 }
-for(const dir of ['fisiologia-us','fisiologia-medica-ii','psicologia-medica']){
+for(const dir of ['fisiologia-us','fisiologia-medica-ii','psicologia-medica','bioquimica-us']){
  const code=fs.readFileSync(path.join(__dirname,'../apps-script',dir,'Code.gs'),'utf8');
  const bank=code.match(/const BANCO_NOMBRE_V14 = '([^']+)'/)[1];
  const headers=['tema','tema_nombre','concepto_id','concepto','enunciado','a','b','c','d','e','respuesta_correcta','fuente','dificultad','explicacion_corta','explicacion_larga','estado_explicacion','tags','activa','version','id','imagen_url','imagen_alt'];
+ if(dir==='bioquimica-us') headers.splice(0,headers.length,...JSON.parse(fs.readFileSync(path.join(__dirname,'../apps-script/bioquimica-us/schema.json'),'utf8')).preguntas);
  const questions=Array.from({length:20},(_,i)=>['T1','Tema','c','Concepto','Pregunta '+i,'Uno','Dos','','','','A','PROPIA','media','Corta','Larga','completa','','1','1','q'+i,'','']);
  const sh={preguntas:new Sheet([headers,...questions]),examenes:new Sheet([Array(30).fill('header')]),preguntas_examen:new Sheet([['codigo','json']]),respuestas:new Sheet([Array(21).fill('header').concat('tiene_duda')])};
  let auth=0,opens=0,held=false,allow=true,mode='autonomo';
