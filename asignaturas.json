@@ -124,6 +124,12 @@
       "sheetId": "1AiRRzUNeyHFZtMg3TPBzZ4vSNBvtNT-JNzkBX7uLPeI",
       "scriptUrl": "https://script.google.com/macros/s/AKfycbwbLNWt5tg27geBMXR39wap_LvYQgFALFFfKEVRxYccU--PyFcyvlkcGIbg93-sVjouuQ/exec",
       "seguridad": "sesion-v14"
+    },
+    {
+      "nombre": "Farmacología Clínica UCM",
+      "sheetId": "1fre0NWRToZr-im5x-fUHm5olWqrYeRAR_ksk0Xi62Rg",
+      "scriptUrl": "https://script.google.com/macros/s/AKfycbzH76_fXSSfkL8pbOWCf6aDdHNcPAFFHneyu1rK_fA4mjKtftEYRbdKG6AdpvyOgMT9/exec",
+      "seguridad": "sesion-v14"
     }
   ]
 }
